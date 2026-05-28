@@ -73,12 +73,14 @@ int tool_keyinfo(int argc, char *argv[])
 
 	if (!keys.FromBuffer(buf, len)) {
 		std::cout << "bad key file format" << std::endl;
+		delete[] buf;
 		return 3;
 	}
 
 	auto dest = keys.GetPublic();
 	if(!dest) {
 		std::cout << "failed to extract public key" << std::endl;
+		delete[] buf;
 		return 3;
 	}
 
@@ -118,5 +120,6 @@ int tool_keyinfo(int argc, char *argv[])
 			std::cout << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
 	}
 
+	delete[] buf;
 	return 0;
 }
