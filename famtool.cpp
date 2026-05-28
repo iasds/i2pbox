@@ -175,6 +175,7 @@ int tool_famtool(int argc, char *argv[])
 			break;
 		case 'o':
 			outfile = std::string(argv[optind-1]);
+			break;
 		case 'c':
 			certfile = std::string(argv[optind-1]);
 			break;
