@@ -18,6 +18,13 @@ int tool_keygen(int argc, char *argv[])
 		type = NameToSigType(str);
 		if (SigTypeToName(type).find("unknown") != std::string::npos) { std::cerr << "Incorrect signature type" << std::endl; return -2; }
 	}
+	// RSA signature types are not supported, fallback to EdDSA
+	if (type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048 ||
+	    type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072 ||
+	    type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096) {
+		std::cerr << "Warning: RSA signature type is not supported. Using EdDSA instead." << std::endl;
+		type = i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
+	}
 	auto keys = i2p::data::PrivateKeys::CreateRandomKeys (type);
 	std::ofstream f (argv[1], std::ofstream::binary | std::ofstream::out);
 	if (f)

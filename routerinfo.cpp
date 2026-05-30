@@ -77,6 +77,11 @@ int tool_routerinfo(int argc, char *argv[])
 		std::string fname(argv[idx]);
 		i2p::data::RouterInfo ri(fname);
 
+		if (ri.IsUnreachable ()) {
+			std::cerr << "Error: Cannot read router info from " << fname << std::endl;
+			continue;
+		}
+
 		std::vector<std::shared_ptr<const i2p::data::RouterInfo::Address> > addrs;
 		auto a = ri.GetPublishedNTCP2V4Address();
 		if(a)
