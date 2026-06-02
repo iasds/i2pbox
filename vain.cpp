@@ -3,6 +3,7 @@
 #include<getopt.h>
 #include<string>
 #include<filesystem>
+#include<sys/stat.h>
 //#include<boost/algorithm/string/predicate.hpp>
 //#include<format> // is not supports for me
 
@@ -445,6 +446,7 @@ int tool_vain(int argc, char *argv[])
      	std::ofstream f (options.outputpath, std::ofstream::binary | std::ofstream::out);
      	if (f)
      	{
+     	chmod(options.outputpath.c_str(), 0600);
      		f.write ((char *)KeyBuf, keys_len);
      		DELKEYBUFS(options.threads);
      	}

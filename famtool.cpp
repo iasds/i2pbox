@@ -13,6 +13,7 @@
 #include <openssl/evp.h>
 #include <openssl/ec.h>
 #include <openssl/ssl.h>
+#include <sys/stat.h>
 
 using namespace i2p::crypto;
 using namespace i2p::data;
@@ -37,7 +38,7 @@ static void printhelp(const std::string & name)
 static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
 {
 	std::shared_ptr<Verifier> verifier;
-	SSL_CTX * ctx = SSL_CTX_new (TLSv1_method ());
+	SSL_CTX * ctx = SSL_CTX_new (TLS_method ());
 	int ret = SSL_CTX_use_certificate_file (ctx, filename.c_str (), SSL_FILETYPE_PEM); 
 	if (ret)
 	{
@@ -89,7 +90,7 @@ static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
 
 static bool CreateFamilySignature (const std::string& family, const IdentHash& ident, const std::string & filename, std::string & sig)
 {
-	SSL_CTX * ctx = SSL_CTX_new (TLSv1_method ());
+	SSL_CTX * ctx = SSL_CTX_new (TLS_method ());
 	int ret = SSL_CTX_use_PrivateKey_file (ctx, filename.c_str (), SSL_FILETYPE_PEM); 
 	if (ret)
 	{
@@ -216,6 +217,7 @@ int tool_famtool(int argc, char *argv[])
 			fprintf(stderr, "cannot open %s: %s\n", privkey.c_str(), strerror(errno));
 			return 1;
 		}
+		chmod(privkey.c_str(), 0600);
 
 		FILE * certf = fopen(certfile.c_str(), "w");
 		if(!certf) {
@@ -315,6 +317,7 @@ int tool_famtool(int argc, char *argv[])
 				std::cout << "invalid key file " << infile << std::endl;
 				return 1;
 			}
+			OPENSSL_cleanse(k, len);
 			delete [] k;
 		}
 

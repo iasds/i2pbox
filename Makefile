@@ -8,11 +8,13 @@ LIBI2PD_PATH := $(I2PD_PATH)/libi2pd
 LIBI2PD_CLIENT_PATH := $(I2PD_PATH)/libi2pd_client
 
 CXX ?= g++
-CXXFLAGS := -Wall -std=c++17 -O2
+CXXFLAGS := -Wall -Wextra -std=c++17 -O2 \
+	-fstack-protector-strong -D_FORTIFY_SOURCE=2 \
+	-fPIE -Wformat -Wformat-security -Wno-unused-parameter
 INCFLAGS := -I$(LIBI2PD_PATH) -I$(LIBI2PD_CLIENT_PATH)
 DEFINES := -DOPENSSL_SUPPRESS_DEPRECATED
 
-LDFLAGS :=
+LDFLAGS := -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie
 LDLIBS := $(I2PD_PATH)/$(I2PD_LIB) -lboost_program_options$(BOOST_SUFFIX) -lssl -lcrypto -lz
 
 ifeq ($(UNAME),Linux)

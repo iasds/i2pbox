@@ -108,46 +108,44 @@ const std::map<std::string, AsksT> Texts = // maybe vector better
 
 // Functions
 bool AskYN(void) noexcept {
-	char answ; 
-	std::cout << " ? (y/n) ";
-	std::cin >> answ;
-	CIN_CLEAR;
-        switch(answ) {
-		case 'y':
-		case 'Y':
-			return true;
-		case 'n':
-		case 'N':
-			return false;
-		default:
-			return AskYN(); // stack overflow, would use while(true)
+	while (true) {
+		char answ; 
+		std::cout << " ? (y/n) ";
+		std::cin >> answ;
+		CIN_CLEAR;
+		switch(answ) {
+			case 'y':
+			case 'Y':
+				return true;
+			case 'n':
+			case 'N':
+				return false;
+		}
 	}
 }
 std::string GetLanguage(void) noexcept {
-	std::string lang;
-	std::cout << "Language/Язык:\r\nru - русский\r\nen - английский\r\n";
-	std::cin >> lang;
-	CIN_CLEAR; 
-	if (Texts.find(lang) != Texts.end()) {
-		return lang;
-	} else { 
+	while (true) {
+		std::string lang;
+		std::cout << "Language/Язык:\r\nru - русский\r\nen - английский\r\n";
+		std::cin >> lang;
+		CIN_CLEAR; 
+		if (Texts.find(lang) != Texts.end()) {
+			return lang;
+		}
 		std::cerr << "Not correct language, try again" << std::endl;
-		return GetLanguage(); // stack overflow
 	}
 }
 
 bool IsOnlyYggdrasil(const std::string & lang) noexcept {
-	unsigned short answ;
-	std::cout << AutoConf::Texts.at(lang).at("WelcomeText") << std::endl;
-	std::cin >> answ; 	
-	CIN_CLEAR; 
-	switch(answ) {
-		case 1:
-			return false;
-		case 2:
-			return true;
-		default: 
-		return IsOnlyYggdrasil(lang);
+	while (true) {
+		unsigned short answ;
+		std::cout << AutoConf::Texts.at(lang).at("WelcomeText") << std::endl;
+		std::cin >> answ; 	
+		CIN_CLEAR; 
+		switch(answ) {
+			case 1: return false;
+			case 2: return true;
+		}
 	}
 }
 
