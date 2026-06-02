@@ -6,6 +6,8 @@
 #include "Identity.h"
 #include "Timestamp.h"
 #include "common/key.hpp"
+#include <sys/stat.h>
+#include <openssl/crypto.h>
 
 int tool_offlinekeys(int argc, char *argv[])
 {
@@ -52,10 +54,12 @@ int tool_offlinekeys(int argc, char *argv[])
 	std::ofstream f (argv[1], std::ofstream::binary | std::ofstream::out);
 	if (f)
 	{
+		chmod(argv[1], 0600);
 		size_t len = offlineKeys.GetFullLen ();
 		uint8_t * buf = new uint8_t[len];
 		len = offlineKeys.ToBuffer (buf, len);
 		f.write ((char *)buf, len);
+		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		std::cout << "Offline keys for destination " << offlineKeys.GetPublic ()->GetIdentHash ().ToBase32 () << " created" << std::endl
 			<< "Signature type: " << SigTypeToName(type) << " (" << type << ")" << std::endl

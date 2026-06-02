@@ -6,7 +6,6 @@
 #include "Base.h"
 
 #define KEYSIZE 32
-size_t len = KEYSIZE;
 
 struct BoxKeys
 {
@@ -17,6 +16,7 @@ struct BoxKeys
 BoxKeys getKeyPair()
 {
     BoxKeys keys;
+    size_t len = KEYSIZE;
 
     EVP_PKEY_CTX * Ctx;
     EVP_PKEY * Pkey = nullptr;
@@ -61,13 +61,13 @@ int tool_x25519(int argc, char *argv[])
     //char b64Public[len_out] = {0};
     //char b64Private[len_out] = {0};
 
-    auto b64Public = i2p::data::ByteStreamToBase64 (newKeys.PublicKey, len);//, b64Public, len_out);
+    auto b64Public = i2p::data::ByteStreamToBase64 (newKeys.PublicKey, KEYSIZE);
 
     std::cout << "PublicKey: ";
     for (int i = 0; b64Public[i] != 0; ++i)
         std::cout << b64Public[i];
 
-    auto b64Private = i2p::data::ByteStreamToBase64 (newKeys.PrivateKey, len);//, b64Private, len_out);
+    auto b64Private = i2p::data::ByteStreamToBase64 (newKeys.PrivateKey, KEYSIZE);
 
     std::cout << "\nPrivateKey: ";
     for (int i = 0; b64Private[i] != 0; ++i)

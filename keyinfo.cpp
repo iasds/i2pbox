@@ -56,6 +56,7 @@ int tool_keyinfo(int argc, char *argv[])
 		}
 	}
 
+	if (optind >= argc) return printHelp(argv[0], -1);
 	std::string fname(argv[optind]);
 	i2p::data::PrivateKeys keys;
 	std::ifstream s(fname, std::ifstream::binary);

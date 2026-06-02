@@ -4,6 +4,7 @@
 #include "Crypto.h"
 #include "Identity.h"
 #include "common/key.hpp"
+#include <sys/stat.h>
 
 int tool_keygen(int argc, char *argv[])
 {
@@ -29,10 +30,12 @@ int tool_keygen(int argc, char *argv[])
 	std::ofstream f (argv[1], std::ofstream::binary | std::ofstream::out);
 	if (f)
 	{
+		chmod(argv[1], 0600);
 		size_t len = keys.GetFullLen ();
 		uint8_t * buf = new uint8_t[len];
 		len = keys.ToBuffer (buf, len);
 		f.write ((char *)buf, len);
+		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		std::cout << "Destination " << keys.GetPublic ()->GetIdentHash ().ToBase32 () << " created" << std::endl;
 		std::cout << "Signature type: " << SigTypeToName(type) << " (" << type << ")" << std::endl;

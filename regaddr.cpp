@@ -3,6 +3,7 @@
 #include <sstream>
 #include "Identity.h"
 #include "Base.h"
+#include <openssl/crypto.h>
 
 int tool_regaddr(int argc, char *argv[])
 {
@@ -42,6 +43,7 @@ int tool_regaddr(int argc, char *argv[])
 		else
 			std::cout << "Failed to load keyfile " << argv[1] << std::endl;
 
+		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 	}
 

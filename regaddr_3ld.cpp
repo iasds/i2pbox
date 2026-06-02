@@ -4,6 +4,7 @@
 #include <ctime>
 #include "Identity.h"
 #include "Base.h"
+#include <openssl/crypto.h>
 
 static void help ()
 {
@@ -36,6 +37,7 @@ int tool_regaddr_3ld(int argc, char *argv[])
 				std::cout << out.str () << std::endl;
 			} else
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
+			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 		}
 	}
@@ -65,19 +67,18 @@ int tool_regaddr_3ld(int argc, char *argv[])
 			if(keys.FromBuffer (buf, len)) {
 				auto signatureLen = keys.GetPublic ()->GetSignatureLen ();
 				uint8_t * signature = new uint8_t[signatureLen];
-				//char * sig = new char[signatureLen*2];
 				out << "#date=" << std::time(nullptr);
 				out << "#olddest=" << keys.GetPublic ()->ToBase64 ();
 				out << "#oldname=" << argv[4];
 				keys.Sign ((uint8_t *)out.str ().c_str (), out.str ().length (), signature);
-				auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);//, sig, signatureLen*2);
-				//sig[len] = 0;
+				auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);
 				out << "#oldsig=" << sig;
+				OPENSSL_cleanse(signature, signatureLen);
 				delete[] signature;
-				//delete[] sig;
 				std::cout << out.str () << std::endl;
 			} else
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
+			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 		}
 	}
@@ -107,16 +108,15 @@ int tool_regaddr_3ld(int argc, char *argv[])
 			if(keys.FromBuffer (buf, len)) {
 				auto signatureLen = keys.GetPublic ()->GetSignatureLen ();
 				uint8_t * signature = new uint8_t[signatureLen];
-				//char * sig = new char[signatureLen*2];
 				keys.Sign ((uint8_t *)out.str ().c_str (), out.str ().length (), signature);
-				auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);//, sig, signatureLen*2);
-				//sig[len] = 0;
+				auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);
 				out << "#sig=" << sig;
+				OPENSSL_cleanse(signature, signatureLen);
 				delete[] signature;
-				//delete[] sig;
 				std::cout << out.str () << std::endl;
 			} else
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
+			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 		}
 	}

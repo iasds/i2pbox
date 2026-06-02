@@ -73,6 +73,7 @@ int tool_verifyhost(int argc, char *argv[])
 			}
 
 			signatureLen = OldIdentity.GetSignatureLen ();
+			delete[] signature;
 			signature = new uint8_t[signatureLen];
 
 			// get record till oldsig key and oldsig

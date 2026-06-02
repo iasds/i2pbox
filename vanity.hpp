@@ -8,6 +8,7 @@
 #include "I2PEndian.h"
 #include "common/key.hpp"
 #include <thread>
+#include <atomic>
 #include <unistd.h>
 #include <vector>
 
@@ -59,18 +60,15 @@
 // def out file name
 #define DEF_OUT_FILE "private"
 // Global vars
-static bool found=false;
+static std::atomic<bool> found{false};
 static bool multipleSearchMode = false;
 //TODO: an another variable for file count and found keys as found keys by one runs
 static unsigned int foundKeys = 0;
 static size_t MutateByte;
 
-static uint32_t FoundNonce=0;
+static std::atomic<uint32_t> FoundNonce{0};
 
-//static uint8_t ** KeyBufs;
-
-//static uint8_t * PaddingBuf;
-static unsigned long long hashescounter;
+static std::atomic<unsigned long long> hashescounter{0};
 unsigned int count_cpu;
 
 const uint8_t lastBlock[64] =

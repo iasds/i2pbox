@@ -89,6 +89,6 @@ int tool_i2pbase64(int argc, char *argv[])
 	{
 		retcode = operate_b64_encode(infile, 1);
 	}
-	close(infile);
+	if(infile > 0) close(infile);
 	return retcode;
 }

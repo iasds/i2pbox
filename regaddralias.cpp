@@ -3,6 +3,7 @@
 #include <sstream>
 #include "Identity.h"
 #include "Base.h"
+#include <openssl/crypto.h>
 
 int tool_regaddralias(int argc, char *argv[])
 {
@@ -27,6 +28,7 @@ int tool_regaddralias(int argc, char *argv[])
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
 				return -1;
 			}
+			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 		}
 		else
@@ -50,6 +52,7 @@ int tool_regaddralias(int argc, char *argv[])
 				std::cout << "Failed to load keyfile " << argv[2] << std::endl;
 				return -1;
 			}
+			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 		}
 		else
