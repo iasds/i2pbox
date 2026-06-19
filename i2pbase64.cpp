@@ -27,7 +27,7 @@ int operate_b64_decode(int infile, int outfile) {
 
         size_t outsz = i2p::data::Base64ToByteStream(s, outbuf, sizeof(outbuf));
         if (outsz > 0) {
-            write(outfile, outbuf, outsz);
+            if (write(outfile, outbuf, outsz) < 0) return -1;
         } else {
             return -1;
         }
@@ -43,7 +43,7 @@ int operate_b64_encode(int infile, int outfile) {
     ssize_t sz;
     while((sz = read(infile, inbuf, sizeof(inbuf))) > 0) {
         std::string out = i2p::data::ByteStreamToBase64(inbuf, sz);
-        write(outfile, out.data(), out.size());
+        if (write(outfile, out.data(), out.size()) < 0) return -1;
     }
     return errno;
 }

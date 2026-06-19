@@ -265,8 +265,8 @@ int parsing(int argc, char ** args){
 				options.outputpath=optarg;
 				break;
 		case '?':
-			std::cerr << "Undefined argument" << std::endl;
 		default:
+			std::cerr << "Undefined argument" << std::endl;
 			std::cerr << args[0] << "--help" << std::endl;
 			return 1;
 		}

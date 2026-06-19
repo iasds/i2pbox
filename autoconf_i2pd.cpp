@@ -171,12 +171,12 @@ int tool_autoconf_i2pd(int, char**) {
 								while(1) {\
 								std::cout << AutoConf::Texts.at(lang).at(B) << "\r\n"; \
 								std::string inp; \
-								std::cin >> inp;\ 
+								std::cin >> inp;\
 								CIN_CLEAR; \
 									std::smatch bmatch;\
 									std::regex_match(inp, bmatch, REGEX);\
 									if (bmatch.length() > 0) {\
-										conf << C "=" << inp << "\r\n"; \ 
+										conf << C "=" << inp << "\r\n"; \
 										break;\
 									}else {std::cerr<<"No correct input"<<std::endl;}\
 								} \
