@@ -323,6 +323,10 @@ int tool_famtool(int argc, char *argv[])
 		}
 
         RouterInfo routerInfo(infofile);
+		if (routerInfo.IsUnreachable()) {
+			std::cout << "invalid router info " << infofile << std::endl;
+			return 1;
+		}
 		LocalRouterInfo ri;
         ri.Update (routerInfo.GetBuffer (), routerInfo.GetBufferLen ());        
 
@@ -372,6 +376,10 @@ int tool_famtool(int argc, char *argv[])
 		if (verbose) std::cout << "load " << infofile << std::endl;
 
         RouterInfo routerInfo(infofile);
+		if (routerInfo.IsUnreachable()) {
+			std::cout << "invalid router info " << infofile << std::endl;
+			return 1;
+		}
 		LocalRouterInfo ri;
         ri.Update (routerInfo.GetBuffer (), routerInfo.GetBufferLen ());
 		auto sig = ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY_SIG);

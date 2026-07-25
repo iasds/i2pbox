@@ -19,6 +19,20 @@ expect_failure() {
     fi
 }
 
+expect_clean_failure() {
+    local description=$1
+    shift
+    local status
+    if "$@" >"$tmpdir/stdout" 2>"$tmpdir/stderr"; then
+        fail "$description succeeded"
+    else
+        status=$?
+    fi
+    if (( status >= 128 )); then
+        fail "$description terminated by signal (exit $status)"
+    fi
+}
+
 version=$($binary --version)
 case "$version" in
     *"i2pbox"*"i2pd"*) ;;
@@ -40,5 +54,11 @@ expect_failure "offlinekeys rejects invalid days" "$binary" offlinekeys "$tmpdir
 expect_failure "regaddr rejects a missing address" "$binary" regaddr "$keyfile"
 expect_failure "regaddralias rejects a missing address" "$binary" regaddralias "$keyfile" "$keyfile"
 expect_failure "regaddr_3ld step1 rejects a missing address" "$binary" regaddr_3ld step1 "$keyfile"
+
+family_cert="$tmpdir/test-family.crt"
+family_key="$tmpdir/test-family.pem"
+"$binary" famtool -g -n testfamily -c "$family_cert" -k "$family_key" >"$tmpdir/famtool-generate.out"
+printf 'not a router info' >"$tmpdir/invalid-router.info"
+expect_clean_failure "famtool rejects an invalid router info" "$binary" famtool -V -n testfamily -c "$family_cert" -f "$tmpdir/invalid-router.info"
 
 printf 'PASS: CLI regression tests\n'
