@@ -7,7 +7,7 @@
 
 int tool_regaddralias(int argc, char *argv[])
 {
-	if (argc < 3)
+	if (argc < 4)
 	{
 		std::cout << "Usage: regaddralias oldfilename newfilename address" << std::endl;
 		return -1;
@@ -26,6 +26,8 @@ int tool_regaddralias(int argc, char *argv[])
 			if(!oldkeys.FromBuffer (buf, len))
 			{
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
 				return -1;
 			}
 			OPENSSL_cleanse(buf, len);
@@ -50,6 +52,8 @@ int tool_regaddralias(int argc, char *argv[])
 			if(!newkeys.FromBuffer (buf, len))
 			{
 				std::cout << "Failed to load keyfile " << argv[2] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
 				return -1;
 			}
 			OPENSSL_cleanse(buf, len);
@@ -75,7 +79,8 @@ int tool_regaddralias(int argc, char *argv[])
 	auto oldSig = i2p::data::ByteStreamToBase64 (oldSignature, oldSignatureLen);//, oldSig, oldSignatureLen*2);
 	//oldSig[len] = 0;
 	out << "#oldsig=" << oldSig;
-	delete[] oldSignature;
+		OPENSSL_cleanse(oldSignature, oldSignatureLen);
+		delete[] oldSignature;
 	//delete[] oldSig;
 
 	auto signatureLen = newkeys.GetPublic ()->GetSignatureLen ();
@@ -85,7 +90,8 @@ int tool_regaddralias(int argc, char *argv[])
 	auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);//, sig, signatureLen*2);
 	//sig[len] = 0;
 	out << "#sig=" << sig;
-	delete[] signature;
+		OPENSSL_cleanse(signature, signatureLen);
+		delete[] signature;
 	//delete[] sig;
 
 	std::cout << out.str () << std::endl;

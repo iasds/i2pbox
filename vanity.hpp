@@ -3,10 +3,12 @@
 #include <fstream>
 #include <stdlib.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 #include "Crypto.h"
 #include "Identity.h"
 #include "I2PEndian.h"
 #include "common/key.hpp"
+#include "common/secure_file.hpp"
 #include <thread>
 #include <atomic>
 #include <unistd.h>
@@ -83,7 +85,10 @@ const uint8_t lastBlock[64] =
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x38  // 3128 bits (391 bytes)	
 	};
 
-#define DELKEYBUFS(S) {\
-for (unsigned i = 0; i < (unsigned)(S); i++) \
- delete [] KeyBufs[i];\
-delete [] KeyBufs;}
+#define DELKEYBUFS(S) do { \
+for (unsigned i = 0; i < static_cast<unsigned>(S); ++i) { \
+ OPENSSL_cleanse(KeyBufs[i], keys_len); \
+ delete [] KeyBufs[i]; \
+} \
+delete [] KeyBufs; \
+} while (false)

@@ -22,6 +22,7 @@ int tool_regaddr_3ld(int argc, char *argv[])
 	i2p::data::PrivateKeys keys;
 
 	if (arg == "step1") {
+		if (argc != 4) { help(); return -1; }
 		std::ifstream s(argv[2], std::ifstream::binary);
 		if (s.is_open ()) {
 			s.seekg (0, std::ios::end);
@@ -42,6 +43,7 @@ int tool_regaddr_3ld(int argc, char *argv[])
 		}
 	}
 	else if (arg == "step2") {
+		if (argc != 5) { help(); return -1; }
 		std::ifstream t(argv[2]);
 		std::ifstream s(argv[3], std::ifstream::binary);
 		std::string regtxt;
@@ -83,6 +85,7 @@ int tool_regaddr_3ld(int argc, char *argv[])
 		}
 	}
 	else if (arg == "step3") {
+		if (argc != 4) { help(); return -1; }
 		std::ifstream t(argv[2]);
 		std::ifstream s(argv[3], std::ifstream::binary);
 		std::string regtxt;
