@@ -7,7 +7,7 @@
 
 int tool_regaddr(int argc, char *argv[])
 {
-	if (argc < 2)
+	if (argc < 3)
 	{
 		std::cout << "Usage: regaddr filename address" << std::endl;
 		return -1;
@@ -36,6 +36,7 @@ int tool_regaddr(int argc, char *argv[])
 			auto sig = i2p::data::ByteStreamToBase64 (signature, signatureLen);//, sig, signatureLen*2);
 			//sig[len] = 0;
 			out << "#!sig=" << sig;
+			OPENSSL_cleanse(signature, signatureLen);
 			delete[] signature;
 			//delete[] sig;
 			std::cout << out.str () << std::endl;
@@ -45,6 +46,9 @@ int tool_regaddr(int argc, char *argv[])
 
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
+	} else {
+		std::cerr << "Can't open keyfile " << argv[1] << std::endl;
+		return 1;
 	}
 
 	return 0;

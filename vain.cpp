@@ -443,12 +443,9 @@ int tool_vain(int argc, char *argv[])
      	
      	std::cout << "outpath for a now: " << options.outputpath << std::endl;
      
-     	std::ofstream f (options.outputpath, std::ofstream::binary | std::ofstream::out);
-     	if (f)
-     	{
-     	chmod(options.outputpath.c_str(), 0600);
-     		f.write ((char *)KeyBuf, keys_len);
-     		DELKEYBUFS(options.threads);
+	if (i2pbox::WritePrivateFile(options.outputpath, KeyBuf, keys_len))
+	{
+		DELKEYBUFS(options.threads);
      	}
      	else {
      		std::cout << "Can't create file " << options.outputpath << std::endl;

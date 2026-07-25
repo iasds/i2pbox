@@ -13,7 +13,7 @@
 #include <openssl/evp.h>
 #include <openssl/ec.h>
 #include <openssl/ssl.h>
-#include <sys/stat.h>
+#include "common/secure_file.hpp"
 
 using namespace i2p::crypto;
 using namespace i2p::data;
@@ -212,12 +212,13 @@ int tool_famtool(int argc, char *argv[])
 		std::string cn = fam + ".family.i2p.net";
 
 
-		FILE * privf = fopen(privkey.c_str(), "w");
+		const int privfd = i2pbox::OpenPrivateFile(privkey);
+		FILE * privf = privfd < 0 ? nullptr : fdopen(privfd, "w");
 		if(!privf) {
+			if (privfd >= 0) close(privfd);
 			fprintf(stderr, "cannot open %s: %s\n", privkey.c_str(), strerror(errno));
 			return 1;
 		}
-		chmod(privkey.c_str(), 0600);
 
 		FILE * certf = fopen(certfile.c_str(), "w");
 		if(!certf) {

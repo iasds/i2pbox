@@ -1,10 +1,9 @@
 #include <iostream>
-#include <fstream>
 #include <stdlib.h>
 #include "Crypto.h"
 #include "Identity.h"
 #include "common/key.hpp"
-#include <sys/stat.h>
+#include "common/secure_file.hpp"
 
 int tool_keygen(int argc, char *argv[])
 {
@@ -27,23 +26,21 @@ int tool_keygen(int argc, char *argv[])
 		type = i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
 	}
 	auto keys = i2p::data::PrivateKeys::CreateRandomKeys (type);
-	std::ofstream f (argv[1], std::ofstream::binary | std::ofstream::out);
-	if (f)
 	{
-		chmod(argv[1], 0600);
 		size_t len = keys.GetFullLen ();
 		uint8_t * buf = new uint8_t[len];
 		len = keys.ToBuffer (buf, len);
-		f.write ((char *)buf, len);
+		const bool written = i2pbox::WritePrivateFile(argv[1], buf, len);
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
+		if (!written) {
+			std::cerr << "Can't create file " << argv[1] << std::endl;
+			return 1;
+		}
 		std::cout << "Destination " << keys.GetPublic ()->GetIdentHash ().ToBase32 () << " created" << std::endl;
 		std::cout << "Signature type: " << SigTypeToName(type) << " (" << type << ")" << std::endl;
 	}
-	else
-		std::cout << "Can't create file " << argv[1] << std::endl;
 
 	return 0;
 }
-
 

@@ -3,6 +3,8 @@ UNAME := $(shell uname -s)
 I2PD_PATH := i2pd
 I2PD_LIB := libi2pd.a
 BINARY := i2pbox
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+I2PD_VERSION := $(shell git -C $(I2PD_PATH) describe --tags --always --dirty 2>/dev/null || echo unknown)
 
 LIBI2PD_PATH := $(I2PD_PATH)/libi2pd
 LIBI2PD_CLIENT_PATH := $(I2PD_PATH)/libi2pd_client
@@ -12,7 +14,7 @@ CXXFLAGS := -Wall -Wextra -std=c++17 -O2 \
 	-fstack-protector-strong -D_FORTIFY_SOURCE=2 \
 	-fPIE -Wformat -Wformat-security -Wno-unused-parameter
 INCFLAGS := -I$(LIBI2PD_PATH) -I$(LIBI2PD_CLIENT_PATH)
-DEFINES := -DOPENSSL_SUPPRESS_DEPRECATED
+DEFINES := -DOPENSSL_SUPPRESS_DEPRECATED -DI2PBOX_VERSION=\"$(VERSION)\" -DI2PD_VERSION=\"$(I2PD_VERSION)\"
 
 LDFLAGS := -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie
 LDLIBS := $(I2PD_PATH)/$(I2PD_LIB) -lboost_program_options$(BOOST_SUFFIX) -lssl -lcrypto -lz
@@ -79,7 +81,10 @@ strip:
 count:
 	wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null
 
+test: $(BINARY)
+	./tests/test_cli.sh ./$(BINARY)
+
 install: $(BINARY)
 	install -m 755 $(BINARY) /usr/local/bin/
 
-.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install
+.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test

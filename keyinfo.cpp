@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "common/key.hpp"
+#include <openssl/crypto.h>
 
 static int printHelp(const char * exe, int exitcode)
 {
@@ -74,6 +75,7 @@ int tool_keyinfo(int argc, char *argv[])
 
 	if (!keys.FromBuffer(buf, len)) {
 		std::cout << "bad key file format" << std::endl;
+		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		return 3;
 	}
@@ -81,6 +83,7 @@ int tool_keyinfo(int argc, char *argv[])
 	auto dest = keys.GetPublic();
 	if(!dest) {
 		std::cout << "failed to extract public key" << std::endl;
+		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		return 3;
 	}
@@ -121,6 +124,7 @@ int tool_keyinfo(int argc, char *argv[])
 			std::cout << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
 	}
 
+	OPENSSL_cleanse(buf, len);
 	delete[] buf;
 	return 0;
 }

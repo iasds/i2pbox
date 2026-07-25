@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstring>
+#include <string>
 #include "Crypto.h"
 #include "tools.h"
 
@@ -52,6 +53,11 @@ int main(int argc, char *argv[]) {
     // Handle help flags at top level
     if (cmd == "-h" || cmd == "--help" || cmd == "help") {
         print_usage(argv[0]);
+        return 0;
+    }
+
+    if (cmd == "--version" || cmd == "version") {
+        std::cout << "i2pbox " << I2PBOX_VERSION << " (i2pd " << I2PD_VERSION << ")\n";
         return 0;
     }
 
