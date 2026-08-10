@@ -3,6 +3,7 @@
 set -euo pipefail
 
 binary=${1:-./i2pbox}
+gen_router_info=${2:-./tests/gen_router_info}
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/i2pbox-tests.XXXXXX")
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -60,5 +61,21 @@ family_key="$tmpdir/test-family.pem"
 "$binary" famtool -g -n testfamily -c "$family_cert" -k "$family_key" >"$tmpdir/famtool-generate.out"
 printf 'not a router info' >"$tmpdir/invalid-router.info"
 expect_clean_failure "famtool rejects an invalid router info" "$binary" famtool -V -n testfamily -c "$family_cert" -f "$tmpdir/invalid-router.info"
+
+# famtool sign -> verify roundtrip on a valid router.info
+"$gen_router_info" "$keyfile" "$tmpdir/router.info" || fail "gen_router_info failed"
+"$binary" famtool -s -n testfamily -k "$family_key" -i "$keyfile" -f "$tmpdir/router.info" >"$tmpdir/famtool-sign.out" || fail "famtool sign failed"
+"$binary" famtool -V -n testfamily -c "$family_cert" -f "$tmpdir/router.info" >"$tmpdir/famtool-verify.out" || fail "famtool verify failed"
+grep -q '^verified$' "$tmpdir/famtool-verify.out" || fail "famtool verify did not report verified"
+expect_clean_failure "famtool verify rejects the wrong family" "$binary" famtool -V -n wrongfamily -c "$family_cert" -f "$tmpdir/router.info"
+
+# verifyhost positive and negative cases
+host_record=$("$binary" regaddr "$keyfile" myname.i2p)
+"$binary" verifyhost "$host_record" || fail "verifyhost rejected a valid record"
+"$binary" verifyhost "${host_record%?}X" >/dev/null 2>&1 && fail "verifyhost accepted a tampered record"
+
+# RSA signature type name resolves (no typo fallthrough)
+"$binary" keygen "$tmpdir/rsa.dat" RSA-SHA256 >"$tmpdir/rsa.out" 2>&1
+grep -q "RSA signature type is not supported" "$tmpdir/rsa.out" || fail "RSA-SHA256 name did not resolve to the RSA type"
 
 printf 'PASS: CLI regression tests\n'
