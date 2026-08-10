@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include "Identity.h"
 #include "Base.h"
 
@@ -40,18 +41,16 @@ int tool_verifyhost(int argc, char *argv[])
 			}
 		}
 
-                int offset = (str[pos - 1] == '#' /* only sig in record */) ? 1 : 0;
-
-		std::string hostNoSig = str.substr (0, pos - offset);
+		std::string hostNoSig = str.substr (0, pos - (pos > 0 && str[pos - 1] == '#' ? 1 : 0));
 		std::string sig = str.substr (pos + 5); // after "#sig=" till end
 
 		auto signatureLen = Identity.GetSignatureLen ();
-		uint8_t * signature = new uint8_t[signatureLen];
+		std::vector<uint8_t> signature (signatureLen);
 
 		// validate signature
 		// size_t Base64ToByteStream (std::string_view base64Str, uint8_t * OutBuffer, size_t len);
-		i2p::data::Base64ToByteStream(sig, signature, signatureLen);
-		if (!Identity.Verify ((uint8_t *)hostNoSig.c_str (), hostNoSig.length (), signature))
+		i2p::data::Base64ToByteStream(sig, signature.data(), signatureLen);
+		if (!Identity.Verify ((uint8_t *)hostNoSig.c_str (), hostNoSig.length (), signature.data ()))
 		{
 			std::cout << "Invalid destination signature." << std::endl;
 			return 1;
@@ -73,8 +72,7 @@ int tool_verifyhost(int argc, char *argv[])
 			}
 
 			signatureLen = OldIdentity.GetSignatureLen ();
-			delete[] signature;
-			signature = new uint8_t[signatureLen];
+			signature.assign (signatureLen, 0);
 
 			// get record till oldsig key and oldsig
 			pos = str.find ("#oldsig=");
@@ -85,8 +83,8 @@ int tool_verifyhost(int argc, char *argv[])
 			std::string oldSig = oldSigCut.substr (0, pos);
 
 			// validate signature
-			i2p::data::Base64ToByteStream(oldSig, signature, signatureLen);
-			bool oldSignValid = OldIdentity.Verify ((uint8_t *)hostNoOldSig.c_str (), hostNoOldSig.length (), signature);
+			i2p::data::Base64ToByteStream(oldSig, signature.data(), signatureLen);
+			bool oldSignValid = OldIdentity.Verify ((uint8_t *)hostNoOldSig.c_str (), hostNoOldSig.length (), signature.data ());
 
 			if(!oldSignValid)
 			{
