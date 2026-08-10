@@ -4,6 +4,7 @@
 #include "Crypto.h"
 #include "RouterInfo.h"
 #include "Identity.h"
+#include <boost/asio.hpp>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -12,7 +13,7 @@ int main(int argc, char** argv)
 {
 	if (argc < 3)
 	{
-		std::cerr << "usage: gen_router_info <router.keys> <out.router.info>" << std::endl;
+		std::cerr << "usage: gen_router_info <router.keys> <out.router.info> [published-host]" << std::endl;
 		return 1;
 	}
 	i2p::crypto::InitCrypto(false);
@@ -36,7 +37,10 @@ int main(int argc, char** argv)
 	i2p::data::LocalRouterInfo ri;
 	ri.SetRouterIdentity(keys.GetPublic());
 	uint8_t sk[32] = {}, iv[16] = {};
-	ri.AddNTCP2Address(sk, iv, 12345, i2p::data::RouterInfo::eNTCP2V4);
+	if (argc > 3 && argv[3][0])
+		ri.AddNTCP2Address(sk, iv, boost::asio::ip::make_address(argv[3]), 12345);
+	else
+		ri.AddNTCP2Address(sk, iv, 12345, i2p::data::RouterInfo::eNTCP2V4);
 	ri.SetProperty("caps", "L");
 	ri.SetProperty("netId", "2");
 	ri.SetProperty("router.version", "9.68");
