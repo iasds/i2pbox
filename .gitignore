@@ -1,5 +1,6 @@
 *.o
 i2pbox
+tests/gen_router_info
 i2pd/libi2pd.a
 i2pd/obj/
 router.keys
