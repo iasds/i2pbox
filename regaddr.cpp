@@ -5,12 +5,32 @@
 #include "Base.h"
 #include <openssl/crypto.h>
 
+static bool isValidName (const char * name)
+{
+	size_t len = 0;
+	for (const char * p = name; *p; p++)
+	{
+		if (len >= 255) return false;
+		const unsigned char c = *p;
+		if ((c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '.' && c != '-' && c != '_')
+			return false;
+		len++;
+	}
+	return len > 0;
+}
+
 int tool_regaddr(int argc, char *argv[])
 {
 	if (argc < 3)
 	{
 		std::cout << "Usage: regaddr filename address" << std::endl;
-		return -1;
+		return 1;
+	}
+
+	if (!isValidName (argv[2]))
+	{
+		std::cerr << "Invalid address name " << argv[2] << std::endl;
+		return 1;
 	}
 
 	i2p::data::PrivateKeys keys;
@@ -20,13 +40,18 @@ int tool_regaddr(int argc, char *argv[])
 	{
 		s.seekg (0, std::ios::end);
 		size_t len = s.tellg();
+		if (len == (size_t)-1 || len > 64*1024*1024)
+		{
+			std::cerr << "Failed to read keyfile " << argv[1] << std::endl;
+			return 1;
+		}
 		s.seekg (0, std::ios::beg);
 		uint8_t * buf = new uint8_t[len];
 		s.read ((char *)buf, len);
 
 		if(keys.FromBuffer (buf, len))
 		{
-			auto signatureLen = keys.GetPublic ()->GetSignatureLen ();
+			auto signatureLen = keys.GetSignatureLen ();
 			uint8_t * signature = new uint8_t[signatureLen];
 			//char * sig = new char[signatureLen*2];
 			std::stringstream out;

@@ -10,12 +10,18 @@
 #include <io.h>
 #include <sys/stat.h>
 #else
+#include <csignal>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 namespace i2pbox {
+
+inline bool FileExists(const std::string& path) {
+	struct stat st;
+	return stat(path.c_str(), &st) == 0;
+}
 
 inline int OpenPrivateFile(const std::string& path) {
     int flags = O_WRONLY | O_CREAT | O_TRUNC;
@@ -34,8 +40,14 @@ inline int OpenPrivateFile(const std::string& path) {
     if (fd < 0) return -1;
 
 #ifndef _WIN32
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_nlink > 1) {
+        close(fd);
+        return -1;
+    }
     if (fchmod(fd, S_IRUSR | S_IWUSR) != 0) {
         close(fd);
+        unlink(path.c_str());
         return -1;
     }
 #endif
@@ -43,6 +55,9 @@ inline int OpenPrivateFile(const std::string& path) {
 }
 
 inline bool WritePrivateFile(const std::string& path, const uint8_t* data, size_t size) {
+#ifndef _WIN32
+    signal(SIGXFSZ, SIG_IGN);
+#endif
     const int fd = OpenPrivateFile(path);
     if (fd < 0) return false;
 
@@ -57,8 +72,10 @@ inline bool WritePrivateFile(const std::string& path, const uint8_t* data, size_
         if (result <= 0) {
 #ifdef _WIN32
             _close(fd);
+            _unlink(path.c_str());
 #else
             close(fd);
+            unlink(path.c_str());
 #endif
             return false;
         }
@@ -68,7 +85,10 @@ inline bool WritePrivateFile(const std::string& path, const uint8_t* data, size_
 #ifdef _WIN32
     return _close(fd) == 0;
 #else
-    return close(fd) == 0;
+    const bool synced = fsync(fd) == 0;
+    const bool closed = close(fd) == 0;
+    if (!synced) unlink(path.c_str());
+    return synced && closed;
 #endif
 }
 

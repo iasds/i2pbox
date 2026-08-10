@@ -1,7 +1,9 @@
 /**
  * famtool - a tool for creating and verifying router families
  */
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
@@ -46,16 +48,6 @@ static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
 		X509 * cert = SSL_get_certificate (ssl);
 		if (cert)
 		{
-			// extract issuer name
-			char name[100];
-			X509_NAME_oneline (X509_get_issuer_name(cert), name, 100);
-			char * cn = strstr (name, "CN=");
-			if (cn)
-			{
-				cn += 3;
-				char * family = strstr (cn, ".family");
-				if (family) family[0] = 0;
-			}
 			auto pkey = X509_get_pubkey (cert);
 
 			EC_KEY * ecKey = EVP_PKEY_get1_EC_KEY (pkey);
@@ -130,7 +122,7 @@ int tool_famtool(int argc, char *argv[])
 {
 	if (argc == 1) {
 		usage(argv[0]);
-		return -1;
+		return 1;
 	}
 	int opt;
 	bool verbose = false;
@@ -157,6 +149,8 @@ int tool_famtool(int argc, char *argv[])
 			break;
 		case 'n':
 			fam = std::string(argv[optind-1]);
+			// family names are case-insensitive in the I2P network; normalize to lower
+			std::transform(fam.begin(), fam.end(), fam.begin(), ::tolower);
 			if (fam.size() + 32 > 50) {
 				std::cout << "family name too long" << std::endl;
 				return 1;
@@ -185,7 +179,7 @@ int tool_famtool(int argc, char *argv[])
 			break;
 		default:
 			usage(argv[0]);
-			return -1;
+			return 1;
 		}
 	}
 	if(help) {
@@ -214,8 +208,19 @@ int tool_famtool(int argc, char *argv[])
 			return 1;
 		}
 
-		FILE * certf = fopen(certfile.c_str(), "w");
+		int certflags = O_WRONLY | O_CREAT | O_TRUNC;
+#ifdef O_CLOEXEC
+		certflags |= O_CLOEXEC;
+#endif
+#ifdef O_NOFOLLOW
+		certflags |= O_NOFOLLOW;
+#endif
+		int certfd = open(certfile.c_str(), certflags, 0644);
+		FILE * certf = certfd < 0 ? nullptr : fdopen(certfd, "w");
 		if(!certf) {
+			if (certfd >= 0) close(certfd);
+			if (privf) fclose(privf);
+			unlink(privkey.c_str());
 			fprintf(stderr, "cannot open %s: %s\n", certfile.c_str(), strerror(errno));
 			return 1;
 		}
@@ -306,6 +311,10 @@ int tool_famtool(int argc, char *argv[])
 			fi.seekg (0, std::ios::end);
 			size_t len = fi.tellg();
 			fi.seekg (0, std::ios::beg);
+			if (len == (size_t)-1 || len > 64*1024*1024) {
+				std::cout << "invalid key file " << infile << std::endl;
+				return 1;
+			}
 			uint8_t * k = new uint8_t[len];
 			fi.read((char*)k, len);
 			if(!keys.FromBuffer(k, len)) {
@@ -379,7 +388,11 @@ int tool_famtool(int argc, char *argv[])
         ri.SetRouterIdentity (routerInfo.GetRouterIdentity ());
         ri.Update (routerInfo.GetBuffer (), routerInfo.GetBufferLen ());
 		auto sig = ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY_SIG);
-		if (ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY) != fam) {
+		std::string famLower = fam;
+		std::transform(famLower.begin(), famLower.end(), famLower.begin(), ::tolower);
+		std::string propFamily = ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY);
+		std::transform(propFamily.begin(), propFamily.end(), propFamily.begin(), ::tolower);
+		if (propFamily != famLower) {
 			std::cout << infofile << " does not belong to " << fam << std::endl;
 			return 1;
 		}

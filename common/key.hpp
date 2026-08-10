@@ -50,34 +50,51 @@ static void ToUpper(std::string & str)
 /** @brief returns the signing key number given its name or -1 if there is no key of that type */
 inline uint16_t NameToSigType(const std::string & keyname)
 {
-	if(keyname.size() <= 2) {
-		if (keyname.empty()) return -1;
-		for (char c : keyname) if (!std::isdigit(c)) return -1;
-		return (uint16_t)std::stoi(keyname);
+	if(keyname.size() <= 3 && !keyname.empty()) {
+		// numeric: must be an exact known signing key type value
+		bool numeric = true;
+		for (char c : keyname)
+			if (!std::isdigit((unsigned char)c)) { numeric = false; break; }
+		if (numeric) {
+			uint16_t type = (uint16_t)std::stoi(keyname);
+			if (type <= i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519)
+				return type;
+			return -1;
+		}
 	}
 
 	std::string name = keyname;
 	ToUpper(name);
-	auto npos = std::string::npos;
-	if(name.find("DSA") == 0) return i2p::data::SIGNING_KEY_TYPE_DSA_SHA1;
 
-	if(name.find("P256") != npos) return i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA256_P256;
+	// exact full-name match, case-insensitive
+	if(name == "DSA-SHA1") return i2p::data::SIGNING_KEY_TYPE_DSA_SHA1;
 
-	if(name.find("P384") != npos) return i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA384_P384;
+	if(name == "ECDSA-P256") return i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA256_P256;
 
-	if(name.find("RSA-SHA256") != npos) return i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048;
+	if(name == "ECDSA-P384") return i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA384_P384;
 
-	if(name.find("RSA-SHA384") != npos) return i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072;
+	if(name == "ECDSA-P521") return i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA512_P521;
 
-	if(name.find("RSA-SHA512") != npos) return i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096;
+	if(name == "RSA-2048-SHA256") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048;
 
-	if(name.find("ED25519") != npos) return i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
+	if(name == "RSA-3072-SHA384") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072;
 
-	if(name.find("GOSTR3410-A-GOSTR3411-256") != npos) return i2p::data::SIGNING_KEY_TYPE_GOSTR3410_CRYPTO_PRO_A_GOSTR3411_256;
+	if(name == "RSA-4096-SHA512") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096;
 
-	if(name.find("GOSTR3410-TC26-A-GOSTR3411-512") != npos) return i2p::data::SIGNING_KEY_TYPE_GOSTR3410_TC26_A_512_GOSTR3411_512;
+	if(name == "ED25519-SHA512") return i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
 
-	if(name.find("RED25519") != npos) return i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519;	
+	if(name == "GOSTR3410-A-GOSTR3411-256") return i2p::data::SIGNING_KEY_TYPE_GOSTR3410_CRYPTO_PRO_A_GOSTR3411_256;
+
+	if(name == "GOSTR3410-TC26-A-GOSTR3411-512") return i2p::data::SIGNING_KEY_TYPE_GOSTR3410_TC26_A_512_GOSTR3411_512;
+
+	if(name == "RED25519-SHA512") return i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519;
+
+	// legacy aliases (exact match only)
+	if(name == "RSA-SHA256") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048;
+
+	if(name == "RSA-SHA384") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072;
+
+	if(name == "RSA-SHA512") return i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096;
 
 	return -1;
 }

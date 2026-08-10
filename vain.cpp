@@ -1,4 +1,5 @@
 #include "vanity.hpp"
+#include<atomic>
 #include<regex>
 #include<getopt.h>
 #include<string>
@@ -9,11 +10,10 @@
 
 // some global vars in vanitygen.hpp
 static std::string foundAddress{};
-static unsigned short fKeyId = 0;
+static std::atomic<unsigned short> fKeyId{0};
 static struct{
         bool reg=false;
         int threads=-1;
-        i2p::data::SigningKeyType signature;
         std::string outputpath="";
         std::regex regex;
 
@@ -80,12 +80,12 @@ static bool check_prefix(const char * buf)
 	unsigned short size_str=0;
 	while(*buf)
 	{
-		if(*buf < 48 || (*buf > 57 && *buf < 65) || (*buf > 64 && *buf < 94) || *buf > 125 || size_str > 52)
+		if(!((*buf >= 'a' && *buf <= 'z') || (*buf >= 'A' && *buf <= 'Z') || (*buf >= '2' && *buf <= '7')))
 			return false;
 		size_str++;
 		buf++;
 	}
-	return true;
+	return size_str > 0 && size_str <= 52;
 }
 
 static inline size_t ByteStreamToBase32 (const uint8_t * inBuf, size_t len, char * outBuf, size_t outLen)
@@ -195,11 +195,15 @@ Orignal is sensei of crypto ;)
 		{
 		 	ByteStreamToBase32 ((uint8_t*)hash, 32, addr, 52);
 			std::cout << "Address found " << addr << " in " << id_thread << std::endl;
-			found=true;
-			FoundNonce=*nonce;
-			foundAddress = addr;
-		 	// From there place we get a nonce, for some one a byte.
-			fKeyId = id_thread;
+			// only the claiming thread writes the shared result (foundAddress/fKeyId)
+			bool expected = false;
+			if(found.compare_exchange_strong(expected, true))
+			{
+				FoundNonce=*nonce;
+				foundAddress = addr;
+			 	// From there place we get a nonce, for some one a byte.
+				fKeyId = id_thread;
+			}
 		 	return true;
 		 }
 
@@ -237,14 +241,13 @@ int parsing(int argc, char ** args){
 		{"help",no_argument,0,'h'},
 		{"reg", no_argument,0,'r'},
 		{"threads", required_argument, 0, 't'},
-		{"signature", required_argument,0,'s'},
 		{"output", required_argument,0,'o'},
 		{"multiplymode", no_argument, 0, 'm'},
 		{0,0,0,0}
 	};
 
 	int c;
-	while( (c=getopt_long(argc,args, "hrt:s:o:m", long_options, &option_index))!=-1){
+	while( (c=getopt_long(argc,args, "hrt:o:m", long_options, &option_index))!=-1){
 		switch(c){
 			case 'm':
 				multipleSearchMode=true;
@@ -258,9 +261,6 @@ int parsing(int argc, char ** args){
 				break;
 			case 't':
 				options.threads=atoi(optarg);
-				break;
-			case 's':
-				options.signature = NameToSigType(std::string(optarg));
 				break;
 			case 'o':
 				options.outputpath=optarg;
@@ -286,27 +286,32 @@ int tool_vain(int argc, char *argv[])
 		usage();
 		return 1;
 	}
-	if (int pr = parsing( argc > 2 ? argc-1 : argc, argc > 2 ? argv+1 : argv)) return pr; // parsing
-	// if argc size more than 2. nameprogram is 1. and 2 is prefix. if not there is will be flags like regex
-	// TODO: ?
-	if(!options.reg && !check_prefix( argv[1] ))
+	if (int pr = parsing(argc, argv)) return pr; // parsing
+	if(optind >= argc)
 	{
-		std::cout << "Not correct prefix(just string)" << std::endl;
+		usage();
 		return 1;
-	}else{
-		options.regex=std::regex(argv[1]);
 	}
-// https://github.com/PurpleI2P/i2pd/blob/ae5239de435e1dcdff342961af9b506f60a494d4/libi2pd/Crypto.h#L310
-//// init and terminate
-//	void InitCrypto (bool precomputation);
-// By default false
-	options.signature = i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
-///////////////
-//For while
-	if(options.signature != i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519)
+	const char * pattern = argv[optind];
+	if(!options.reg)
 	{
-		std::cout << "For a while only ED25519-SHA512" << std::endl;
-		return 0;
+		if(!check_prefix(pattern))
+		{
+			std::cerr << "Not correct prefix(just string)" << std::endl;
+			return 1;
+		}
+	}
+	else
+	{
+		try
+		{
+			options.regex=std::regex(pattern);
+		}
+		catch(const std::regex_error & e)
+		{
+			std::cerr << "Not correct regex: " << e.what() << std::endl;
+			return 1;
+		}
 	}
 ///////////////
 // if threads less than 0, then we get from system count of CPUs cores
@@ -315,58 +320,20 @@ int tool_vain(int argc, char *argv[])
 	 options.threads = std::thread::hardware_concurrency(); // thx for acetone. lol
 	}
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Isntead proccess flipper?
-	if ( !std::regex_match( std::string(argv[1]), std::regex("[a-zA-Z0-9\\.]{1,}")) ) {
-				std::cerr << "Please, change the outputfile name" << std::endl;
-	}
 	// 
      	// if ( options . outputpath . empty () ); options . outputpath . assign ( DEF_OUT_FILE ) ;
 	static std::string outPutFileName  = options.outputpath;
-	auto doSearch = [argc,argv] () {
+	auto doSearch = [argc,argv,pattern] () {
 	 found = false;
      	 // TODO: create libi2pd_tools
      	 // If file not exists we create a dump file. (a bug was found in issues)
-     	 switch(options.signature)
-     	 {
-     		case i2p::data::SIGNING_KEY_TYPE_DSA_SHA1:
-     		case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA512_P521:
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048:
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072:
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096:
-     		case i2p::data::SIGNING_KEY_TYPE_GOSTR3410_TC26_A_512_GOSTR3411_512:
-     		std::cout << "Sorry, i don't can generate adress for this signature type" << std::endl;
-     		return 0;
-     		break;
-     	 }
-     
-        //TODO: for other types.
-     	switch(options.signature)
-     	{
-     		case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA256_P256:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA384_P384:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA512_P521:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096:
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519:
-     			MutateByte=320;
-     		break;
-     		case i2p::data::SIGNING_KEY_TYPE_GOSTR3410_CRYPTO_PRO_A_GOSTR3411_256:
-     		break;
-     	}
+     	MutateByte=320;
      // there we gen key to buffer. That we mem allocate...
-        const auto keys_len = i2p::data::PrivateKeys::CreateRandomKeys (options.signature).GetFullLen(); // is will be constant. so calculate every time is a bad way
+        const auto keys_len = i2p::data::PrivateKeys::CreateRandomKeys (i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519).GetFullLen(); // is will be constant. so calculate every time is a bad way
      	auto KeyBufs = new uint8_t*[options.threads];//[keys_len];
 	for(int i = 0; i < options.threads; i++) {
 		KeyBufs[i] = new uint8_t[keys_len];
-		auto keys = i2p::data::PrivateKeys::CreateRandomKeys (options.signature);
+		auto keys = i2p::data::PrivateKeys::CreateRandomKeys (i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519);
      		keys.ToBuffer (KeyBufs[i], keys_len);
 	}
 	
@@ -392,7 +359,7 @@ int tool_vain(int argc, char *argv[])
 				auto n = j != 0 ? j-1 : 0  ;
 				std::cout << "Use " << n << " key" << std::endl;
 				
-     				threads[j] = std::thread(thread_find,KeyBufs[ n ],argv[1],j,thoughtput);
+     			threads[j] = std::thread(thread_find,KeyBufs[ n ],pattern,j,thoughtput);
      				thoughtput+=1000; 
      			}//for
      
@@ -426,11 +393,15 @@ int tool_vain(int argc, char *argv[])
      	//if(options.outputpath.size() == 0) options.outputpath = DEF_OUT_FILE;
 		if ( options . outputpath . empty () )
 			options.outputpath.assign(foundAddress+".dat");
-		else 
+		else if(multipleSearchMode)
 			options.outputpath = options.outputpath + std::to_string(foundKeys) + std::string(".dat");
+		else if(options.outputpath.size() < 4 || options.outputpath.compare(options.outputpath.size() - 4, 4, ".dat") != 0)
+			options.outputpath += ".dat";
      	while(std::filesystem::exists(options.outputpath))
 		{
 			options.outputpath.assign(outPutFileName);
+			if(options.outputpath.size() > 4 && options.outputpath.compare(options.outputpath.size() - 4, 4, ".dat") == 0)
+				options.outputpath.resize(options.outputpath.size() - 4);
 			options.outputpath = options.outputpath + std::to_string(foundKeys) + std::string(".dat");
 			foundKeys++;
 			//printf("foundKeys = %d\n", foundKeys);
