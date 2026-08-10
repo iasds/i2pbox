@@ -92,6 +92,7 @@ static bool CreateFamilySignature (const std::string& family, const IdentHash& i
 {
 	SSL_CTX * ctx = SSL_CTX_new (TLS_method ());
 	int ret = SSL_CTX_use_PrivateKey_file (ctx, filename.c_str (), SSL_FILETYPE_PEM); 
+	bool ok = false;
 	if (ret)
 	{
 		SSL * ssl = SSL_new (ctx);
@@ -114,17 +115,15 @@ static bool CreateFamilySignature (const std::string& family, const IdentHash& i
 					len += 32;
 					signer.Sign (buf, len, signature);
 					sig = ByteStreamToBase64 (signature, 64);
+					ok = true;
 				}
-				else
-					return false;
 			}
+			EC_KEY_free (ecKey);
 		}
 		SSL_free (ssl);
 	}
-	else
-		return false;
 	SSL_CTX_free (ctx);
-	return true;
+	return ok;
 }
 
 int tool_famtool(int argc, char *argv[])
