@@ -21,11 +21,21 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential libboost-program-options-dev libssl-dev zlib1g-dev xz-utils
       - name: Build and test
-        run: make -j"$(nproc)" VERSION="${GITHUB_REF_NAME:-dev}" && make test
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="dev"
+          fi
+          make -j"$(nproc)" VERSION="$version" && make test
       - name: Package
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME:-dev}"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="dev"
+          fi
           directory="i2pbox-${version}-linux-x86_64"
           mkdir -p "dist/$directory"
           strip i2pbox

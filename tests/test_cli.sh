@@ -6,6 +6,8 @@
 # Assertions prefer cross-tool interoperability (output of A verified by B)
 # and golden vectors over exit-code-only checks.
 #
+# Requires GNU coreutils (stat -c, timeout); Linux CI only.
+#
 # Usage: ./tests/test_cli.sh [i2pbox-binary] [gen-router-info-binary]
 
 set -euo pipefail
@@ -14,6 +16,23 @@ binary=${1:-./i2pbox}
 gen_router_info=${2:-./tests/gen_router_info}
 vectors_dir="$(dirname "${BASH_SOURCE[0]}")/vectors"
 timeout_s=60
+
+# GNU coreutils is required (stat -c, timeout); fail loudly instead of
+# silently producing wrong results on BSD/macOS.
+if ! stat -c '%a' /dev/null >/dev/null 2>&1; then
+    echo "test_cli.sh: GNU coreutils 'stat -c' not available (Linux CI only)" >&2
+    exit 1
+fi
+if ! command -v timeout >/dev/null 2>&1; then
+    echo "test_cli.sh: GNU coreutils 'timeout' not available (Linux CI only)" >&2
+    exit 1
+fi
+
+# Resolve binaries to absolute paths: the autoconf_i2pd test cd's into
+# $tmpdir (the tool writes config files into the CWD), so relative
+# invocations such as ./i2pbox would break from there.
+binary="$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")"
+gen_router_info="$(cd "$(dirname "$gen_router_info")" && pwd)/$(basename "$gen_router_info")"
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/i2pbox-tests.XXXXXX")
 trap 'rm -rf "$tmpdir"' EXIT
@@ -71,8 +90,8 @@ expect_clean_failure() {
         fail "$description succeeded"
         return 1
     fi
-    if (( status >= 128 )); then
-        fail "$description terminated by signal (exit $status)"
+    if (( status >= 128 || status == 124 )); then
+        fail "$description terminated by signal or timeout (exit $status)"
         return 1
     fi
     return 0
@@ -124,7 +143,14 @@ expect_ok "--version exits cleanly" "$binary" --version
 expect_match "--version identifies i2pbox and i2pd" 'i2pbox.*i2pd' "$tmpdir/stdout"
 expect_failure "no arguments exits non-zero" "$binary"
 expect_ok "help exits cleanly" "$binary" help
-expect_match "help lists all 14 commands" 'vain|keygen|keyinfo|famtool|routerinfo|regaddr|regaddr_3ld|i2pbase64|offlinekeys|b33address|regaddralias|x25519|verifyhost|autoconf_i2pd' "$tmpdir/stdout"
+# each command must be listed individually (a single alternation regex would
+# pass if only one of the 14 commands were present)
+cmds=(vain keygen keyinfo famtool routerinfo regaddr regaddr_3ld i2pbase64
+      offlinekeys b33address regaddralias x25519 verifyhost autoconf_i2pd)
+for c in "${cmds[@]}"; do
+    grep -qE "^  ${c}( |$)" "$tmpdir/stdout" \
+        || fail "help does not list $c"
+done
 
 ###############################################################################
 # keygen
@@ -273,16 +299,16 @@ expect_match "x25519 prints a private key" '^PrivateKey: [A-Za-z0-9~-]+=+$' "$tm
 ###############################################################################
 
 group "vain"
-expect_ok "vain finds a short prefix" "$binary" vain ej -t 2 -o "$tmpdir/vain.dat"
-vain_out=$(ls "$tmpdir"/vain.dat*.dat 2>/dev/null | head -1 || true)
-test -n "$vain_out" || fail "vain did not create an output file"
+vain_out="$tmpdir/vain.dat"
+expect_ok "vain finds a short prefix" "$binary" vain ej -t 2 -o "$vain_out"
+test -s "$vain_out" || fail "vain did not create an output file"
 expect_ok "vain output is a valid key" "$binary" keyinfo -v "$vain_out"
 expect_match "vain output starts with the prefix" "^B32 Address: ej[a-z2-7]{50}\.b32\.i2p$" "$tmpdir/stdout"
 
 # regex mode uses std::regex_match against the full 52-char b32 address
-expect_ok "vain regex mode" "$binary" vain '[a-z]{4}[a-z2-7]{48}' -r -t 2 -o "$tmpdir/vain-regex.dat"
-vain_regex_out=$(ls "$tmpdir"/vain-regex.dat*.dat 2>/dev/null | head -1 || true)
-test -n "$vain_regex_out" || fail "vain regex did not create an output file"
+vain_regex_out="$tmpdir/vain-regex.dat"
+expect_ok "vain regex mode" "$binary" vain '[a-z]{4}[a-z2-7]{48}' -r -t 2 -o "$vain_regex_out"
+test -s "$vain_regex_out" || fail "vain regex did not create an output file"
 expect_ok "vain regex output is a valid key" "$binary" keyinfo -v "$vain_regex_out"
 
 expect_failure "vain rejects a missing pattern" "$binary" vain
@@ -428,7 +454,10 @@ expect_failure "routerinfo rejects a missing file" "$binary" routerinfo "$tmpdir
 group "autoconf_i2pd"
 # non-interactive: feed answers on stdin; the tool emits CRLF line endings and
 # grep -E cannot express \r, so strip CR before matching
-if ! printf 'en\n2\n4\n5\n12345\n1\n1\n1\nN\nN\nN\n' | run "$binary" autoconf_i2pd; then
+# run inside $tmpdir: the tool writes its config files into the CWD and must
+# not pollute the repository root (binary is absolute, so the cd is safe)
+if ! ( cd "$tmpdir" \
+    && printf 'en\n2\n4\n5\n12345\n1\n1\n1\nN\nN\nN\n' | run "$binary" autoconf_i2pd ); then
     fail "autoconf_i2pd exited non-zero"
 fi
 if grep -qiE 'error|exception|panic|terminat' "$tmpdir/stderr"; then
@@ -436,6 +465,68 @@ if grep -qiE 'error|exception|panic|terminat' "$tmpdir/stderr"; then
 fi
 tr -d '\r' < "$tmpdir/stdout" | grep -qE '^daemon=true$' \
     || fail "autoconf_i2pd does not emit daemon=true"
+
+###############################################################################
+# bug-fix regressions (round of 2026-08: hardening + input validation)
+###############################################################################
+
+group "fix-regressions"
+# directories must not crash the readers (was bad_alloc abort)
+expect_failure "keyinfo rejects a directory" "$binary" keyinfo "$tmpdir"
+expect_failure "regaddr rejects a directory" "$binary" regaddr "$tmpdir" myname.i2p
+expect_clean_failure "keyinfo rejects a directory cleanly" "$binary" keyinfo "$tmpdir"
+
+# address-name injection (was accepted verbatim)
+expect_failure "regaddr rejects ';' in the address" "$binary" regaddr "$keyfile" 'bad;name'
+expect_failure "regaddr rejects a 300-char address" "$binary" regaddr "$keyfile" "$(python3 -c 'print("x"*300)')"
+expect_ok "regaddr accepts a dotted address" "$binary" regaddr "$keyfile" sub.myname.i2p
+
+# offlinekeys hardening
+expect_failure "offlinekeys rejects RSA transient type" "$binary" offlinekeys "$tmpdir/rsa-off.dat" "$keyfile" 4 30
+test ! -e "$tmpdir/rsa-off.dat" || fail "offlinekeys produced a file for a rejected RSA type"
+expect_ok "offlinekeys generates a first offline file" "$binary" offlinekeys "$tmpdir/off1.dat" "$keyfile" 7 1
+expect_failure "offlinekeys rejects an offline input (nested)" "$binary" offlinekeys "$tmpdir/off2.dat" "$tmpdir/off1.dat" 7 30
+expect_failure "offlinekeys rejects in-place conversion" "$binary" offlinekeys "$keyfile" "$keyfile" 7 30
+
+# keygen overwrite protection and option-like names
+expect_failure "keygen refuses to overwrite an existing key" "$binary" keygen "$keyfile"
+expect_failure "keygen rejects a -- option as filename" "$binary" keygen --help
+
+# signature type name parsing (exact match, no substring)
+expect_failure "keygen rejects a substring signature name" "$binary" keygen "$tmpdir/s1.dat" NOTP256
+expect_ok "keygen accepts the ECDSA-P521 full name" "$binary" keygen "$tmpdir/s2.dat" ECDSA-P521
+expect_match "keygen ECDSA-P521 resolves" 'ECDSA-P521 \(3\)' "$tmpdir/stdout"
+
+# i2pbase64 input validation
+printf 'ABCa\r\nBCDb\r\n' | "$binary" i2pbase64 -d >"$tmpdir/crlf.raw"
+if ! printf 'ABCaBCDb' | "$binary" i2pbase64 -d | cmp -s - "$tmpdir/crlf.raw"; then
+    fail "i2pbase64 CRLF multi-line decode differs from single-line"
+fi
+expect_failure "i2pbase64 rejects '+' in the alphabet" bash -c "printf 'ABCaBCDbABCaBCDb++' | '$binary' i2pbase64 -d"
+expect_failure "i2pbase64 rejects a directory input" "$binary" i2pbase64 -d "$tmpdir"
+
+# b33address trailing garbage (was silently accepted)
+dest=$(cat "$vectors_dir/ed25519.dest")
+expect_failure "b33address rejects trailing garbage" bash -c "printf '%sXXXX' '$dest' | '$binary' b33address"
+expect_failure "x25519 rejects unknown arguments" "$binary" x25519 --bogus
+
+# vain input validation (was: infinite loop / SIGABRT)
+expect_failure "vain rejects a non-b32 pattern" timeout 20 "$binary" vain 9x -t 1 -o "$tmpdir/v9.dat"
+expect_failure "vain rejects an invalid regex" timeout 20 "$binary" vain '(' -r -t 1 -o "$tmpdir/vr.dat"
+expect_failure "vain rejects a removed -s option" timeout 20 "$binary" vain ab -s 1 -t 1 -o "$tmpdir/vs.dat"
+
+# famtool family-name case insensitivity (sign MiXeDFam, verify mixedfam)
+expect_ok "famtool generates the mixed-case family" "$binary" famtool -g -n MiXeDFam -c "$tmpdir/mc.crt" -k "$tmpdir/mc.pem"
+expect_ok "famtool signs with the mixed-case family" "$binary" famtool -s -n MiXeDFam -k "$tmpdir/mc.pem" -i "$keyfile" -f "$tmpdir/router.info"
+expect_ok "famtool verifies with a differently-cased family" "$binary" famtool -V -n mixedfam -c "$tmpdir/mc.crt" -f "$tmpdir/router.info"
+
+# autoconf EOF must fail fast (was: infinite prompt storm)
+if ( cd "$tmpdir" && printf '' | run "$binary" autoconf_i2pd ); then
+    fail "autoconf_i2pd accepted empty stdin"
+fi
+if (( $(wc -c < "$tmpdir/stdout") > 100000 )); then
+    fail "autoconf_i2pd output storm on EOF"
+fi
 
 ###############################################################################
 

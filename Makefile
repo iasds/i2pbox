@@ -1,7 +1,7 @@
 UNAME := $(shell uname -s)
 
 I2PD_PATH := i2pd
-I2PD_LIB := libi2pd.a
+I2PD_LIB := $(I2PD_PATH)/libi2pd.a
 BINARY := i2pbox
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 I2PD_VERSION := $(shell git -C $(I2PD_PATH) describe --tags --always --dirty 2>/dev/null || echo unknown)
@@ -17,7 +17,7 @@ INCFLAGS := -I$(LIBI2PD_PATH) -I$(LIBI2PD_CLIENT_PATH)
 DEFINES := -DOPENSSL_SUPPRESS_DEPRECATED -DI2PBOX_VERSION=\"$(VERSION)\" -DI2PD_VERSION=\"$(I2PD_VERSION)\"
 
 LDFLAGS := -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie
-LDLIBS := $(I2PD_PATH)/$(I2PD_LIB) -lboost_program_options$(BOOST_SUFFIX) -lssl -lcrypto -lz
+LDLIBS := $(I2PD_LIB) -lboost_program_options$(BOOST_SUFFIX) -lssl -lcrypto -lz
 
 ifeq ($(UNAME),Linux)
     CXXFLAGS += -g
@@ -53,27 +53,31 @@ OBJS := main.o vain.o keygen.o keyinfo.o famtool.o routerinfo.o \
         regaddr.o regaddr_3ld.o i2pbase64.o offlinekeys.o b33address.o \
         regaddralias.o x25519.o verifyhost.o autoconf_i2pd.o
 
+# Header dependency files (-MMD -MP), generated next to each object file
+-include $(OBJS:.o=.d)
+
 all: $(I2PD_LIB) $(BINARY)
 
 $(BINARY): $(OBJS) $(I2PD_LIB)
 	$(CXX) -o $@ $(LDFLAGS) $(OBJS) $(LDLIBS)
 
 %.o: %.cpp $(I2PD_LIB)
-	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -MMD -MP -c -o $@ $<
 
 $(I2PD_LIB):
-	$(MAKE) -C $(I2PD_PATH) mk_obj_dir $(I2PD_LIB)
+	$(MAKE) -C $(I2PD_PATH) mk_obj_dir $(notdir $(I2PD_LIB))
 
 clean-i2pd:
 	$(MAKE) -C $(I2PD_PATH) clean
 
 clean-obj:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(OBJS:.o=.d)
 
 clean-bin:
 	rm -f $(BINARY)
 
 clean: clean-i2pd clean-obj clean-bin
+	rm -rf tests/gen_router_info dist/
 
 strip:
 	strip $(BINARY)

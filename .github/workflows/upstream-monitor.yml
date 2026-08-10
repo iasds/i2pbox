@@ -29,10 +29,20 @@ jobs:
             } catch (err) {
               pinned = execFileSync('git', ['-C', 'i2pd', 'rev-parse', '--short', 'HEAD']).toString().trim();
             }
-            if (pinned === latest.data.tag_name) return;
             const title = `Track i2pd ${latest.data.tag_name}`;
+            // per_page 100: far more than the open-issue count this repo
+            // accumulates between weekly runs
             const issues = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100 });
-            if (issues.data.some(issue => issue.title === title)) return;
+            const existing = issues.data.filter(issue => issue.title === title);
+            if (pinned === latest.data.tag_name) {
+              // pinned is already at the latest upstream release: close any
+              // lingering tracking issue instead of leaving it open forever
+              for (const issue of existing) {
+                await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, state: 'closed' });
+              }
+              return;
+            }
+            if (existing.length) return;
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,

@@ -9,6 +9,27 @@ on:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: normal
+            build: make -j"$(nproc)"
+            test: make test
+          - name: sanitizers
+            build: >-
+              make CXXFLAGS='-Wall -Wextra -std=c++17 -O1 -g
+              -fno-omit-frame-pointer -fsanitize=address,undefined
+              -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security
+              -Wno-unused-parameter' LDFLAGS='-fsanitize=address,undefined
+              -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie' -j"$(nproc)"
+            test: >-
+              make CXXFLAGS='-Wall -Wextra -std=c++17 -O1 -g
+              -fno-omit-frame-pointer -fsanitize=address,undefined
+              -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security
+              -Wno-unused-parameter' LDFLAGS='-fsanitize=address,undefined
+              -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie' test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -16,23 +37,9 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential libboost-program-options-dev libssl-dev zlib1g-dev
       - name: Build
-        run: make -j"$(nproc)"
-      - name: Run regression tests
-        run: make test
-
-  sanitizers:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential libboost-program-options-dev libssl-dev zlib1g-dev
-      - name: Build with AddressSanitizer and UndefinedBehaviorSanitizer
-        run: |
-          make CXXFLAGS='-Wall -Wextra -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security -Wno-unused-parameter' LDFLAGS='-fsanitize=address,undefined -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie' -j"$(nproc)"
+        run: ${{ matrix.build }}
       - name: Run regression tests
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1
-        run: make CXXFLAGS='-Wall -Wextra -std=c++17 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security -Wno-unused-parameter' LDFLAGS='-fsanitize=address,undefined -Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie' test
+        run: ${{ matrix.test }}
