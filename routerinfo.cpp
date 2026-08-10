@@ -71,6 +71,7 @@ int tool_routerinfo(int argc, char *argv[])
 		}
 	}
 
+	int ret = 0;
 	while(optind < argc) {
 		int idx = optind;
 		optind ++;
@@ -79,6 +80,7 @@ int tool_routerinfo(int argc, char *argv[])
 
 		if (ri.IsUnreachable ()) {
 			std::cerr << "Error: Cannot read router info from " << fname << std::endl;
+			ret = 1;
 			continue;
 		}
 
@@ -125,5 +127,5 @@ int tool_routerinfo(int argc, char *argv[])
 		}
 	}
 
-	return 0;
+	return ret;
 }

@@ -42,7 +42,12 @@ int tool_regaddr(int argc, char *argv[])
 			std::cout << out.str () << std::endl;
 		}
 		else
+		{
 			std::cout << "Failed to load keyfile " << argv[1] << std::endl;
+			OPENSSL_cleanse(buf, len);
+			delete[] buf;
+			return 1;
+		}
 
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
