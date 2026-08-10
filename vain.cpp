@@ -91,7 +91,8 @@ static bool check_prefix(const char * buf)
 static inline size_t ByteStreamToBase32 (const uint8_t * inBuf, size_t len, char * outBuf, size_t outLen)
 {
 	size_t ret = 0, pos = 1;
-	int bits = 8, tmp = inBuf[0];
+	int bits = 8;
+	uint32_t tmp = inBuf[0];
 	while (ret < outLen && (bits > 0 || pos < len))
 	{
 		if (bits < 5)
@@ -156,7 +157,7 @@ Orignal is sensei of crypto ;)
 
 	memcpy (b, buf, 391); // we copy in b our buf, that we give in function.
 
-	auto len = strlen (prefix);
+	auto len = options.reg ? 52 : strlen (prefix);
 	// precalculate first 5 blocks (320 bytes)
 	uint32_t state[8] = { 0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19 };
 	HashNextBlock (state, b);
@@ -283,7 +284,7 @@ int tool_vain(int argc, char *argv[])
 	if ( argc < 2 )
 	{
 		usage();
-		return 0;
+		return 1;
 	}
 	if (int pr = parsing( argc > 2 ? argc-1 : argc, argc > 2 ? argv+1 : argv)) return pr; // parsing
 	// if argc size more than 2. nameprogram is 1. and 2 is prefix. if not there is will be flags like regex
