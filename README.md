@@ -205,7 +205,7 @@ i2pbox i2pbase64 [-d] [file]
 | *(none)* | Encode stdin/file to I2P Base64 |
 | `-d` | Decode Base64 to raw bytes |
 
-I2P uses a custom Base64 alphabet (`.`, `-`, `~` instead of `+`, `/`, `=`).
+I2P uses a custom Base64 alphabet (`-` and `~` instead of `+` and `/`, with no `=` padding).
 
 ```bash
 echo "hello" | i2pbox i2pbase64             # encode
@@ -312,13 +312,13 @@ First build compiles `libi2pd.a` from the i2pd submodule (~2 minutes).
 | **Compile** | 14 link invocations | 1 |
 | **Stripped size** | ~70 MB | ~5.2 MB |
 | **Usage** | `./toolname args` | `i2pbox toolname args` |
-| **Output** | — | identical (verified by cross-validation) |
+| **Output** | — | same upstream logic, regression-tested (interop chains + golden vectors) |
 
 ## FAQ
 
 ### Behavioral differences?
 
-None. Each subcommand is functionally identical to the original. 24/24 cross-validation tests pass.
+None known. Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals (the one documented deviation is keygen's RSA fallback, see above). The regression suite (`tests/test_cli.sh`) covers all 14 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
 
 ### Alias original names?
 
