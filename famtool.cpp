@@ -113,12 +113,7 @@ static bool CreateFamilySignature (const std::string& family, const IdentHash& i
 					memcpy (buf + len, (const uint8_t *)ident, 32);
 					len += 32;
 					signer.Sign (buf, len, signature);
-					len = Base64EncodingBufferSize (64);
-					//char * b64 = new char[len+1];
-					auto b64 = ByteStreamToBase64 (signature, len);
-					//b64[len] = 0;
-					sig = b64;
-					//delete[] b64;
+					sig = ByteStreamToBase64 (signature, 64);
 				}
 				else
 					return false;
@@ -328,6 +323,7 @@ int tool_famtool(int argc, char *argv[])
 			return 1;
 		}
 		LocalRouterInfo ri;
+        ri.SetRouterIdentity (routerInfo.GetRouterIdentity ());
         ri.Update (routerInfo.GetBuffer (), routerInfo.GetBufferLen ());        
 
 		auto ident = ri.GetIdentHash();
@@ -381,6 +377,7 @@ int tool_famtool(int argc, char *argv[])
 			return 1;
 		}
 		LocalRouterInfo ri;
+        ri.SetRouterIdentity (routerInfo.GetRouterIdentity ());
         ri.Update (routerInfo.GetBuffer (), routerInfo.GetBufferLen ());
 		auto sig = ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY_SIG);
 		if (ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY) != fam) {
@@ -389,17 +386,13 @@ int tool_famtool(int argc, char *argv[])
 		}
 		auto ident = ri.GetIdentHash();
 
-		uint8_t buf[50];
+		uint8_t buf[50], sigbuf[64];
 		size_t len = fam.length();
 		memcpy(buf, fam.c_str(), len);
 		memcpy(buf + len, (const uint8_t *) ident, 32);
 		len += 32;
-		//uint8_t sigbuf[64];
-		auto b64 = ByteStreamToBase64(reinterpret_cast<const uint8_t*>(sig.c_str()), sig.length());
-		
-		//Base64ToByteStream(sig.c_str(), sig.length(), sigbuf, 64);
-		if (!v->Verify(buf, len,
-			reinterpret_cast<const uint8_t*>(b64.data()))) {
+		Base64ToByteStream(sig, sigbuf, 64);
+		if (!v->Verify(buf, len, sigbuf)) {
 			std::cout << "invalid signature" << std::endl;
 			return 1;
 		}

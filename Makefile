@@ -81,8 +81,11 @@ strip:
 count:
 	wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null
 
-test: $(BINARY)
-	./tests/test_cli.sh ./$(BINARY)
+test: $(BINARY) tests/gen_router_info
+	./tests/test_cli.sh ./$(BINARY) ./tests/gen_router_info
+
+tests/gen_router_info: tests/gen_router_info.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
 
 install: $(BINARY)
 	install -m 755 $(BINARY) /usr/local/bin/
