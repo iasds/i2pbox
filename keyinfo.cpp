@@ -28,7 +28,7 @@ std::string ConvertTime (time_t t)
 int tool_keyinfo(int argc, char *argv[])
 {
 	if(argc == 1) {
-		return printHelp(argv[0], -1);
+		return printHelp(argv[0], 1);
 	}
 
 	int opt;
@@ -53,11 +53,11 @@ int tool_keyinfo(int argc, char *argv[])
 			print_blinded = true;
 			break;
 		default:
-			return printHelp(argv[0], -1);
+			return printHelp(argv[0], 1);
 		}
 	}
 
-	if (optind >= argc) return printHelp(argv[0], -1);
+	if (optind >= argc) return printHelp(argv[0], 1);
 	std::string fname(argv[optind]);
 	i2p::data::PrivateKeys keys;
 	std::ifstream s(fname, std::ifstream::binary);
@@ -68,8 +68,12 @@ int tool_keyinfo(int argc, char *argv[])
 	}
 
 	s.seekg(0, std::ios::end);
-	size_t len = s.tellg();
+	size_t len = static_cast<std::size_t>(s.tellg());
 	s.seekg(0, std::ios::beg);
+	if (len == (size_t)-1 || len > 64*1024*1024) {
+		std::cout << "bad key file size" << std::endl;
+		return 3;
+	}
 	uint8_t * buf = new uint8_t[len];
 	s.read((char*)buf, len);
 
@@ -120,8 +124,12 @@ int tool_keyinfo(int argc, char *argv[])
 			std::cout << "b33 address: " << blindedKey.ToB33 () << ".b32.i2p" << std::endl;
 			std::cout << "Today's store hash: " << blindedKey.GetStoreHash ().ToBase64 () << std::endl;
 		}
-		else
+		else {
 			std::cout << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
+			OPENSSL_cleanse(buf, len);
+			delete[] buf;
+			return 1;
+		}
 	}
 
 	OPENSSL_cleanse(buf, len);

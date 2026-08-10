@@ -1,5 +1,6 @@
 #include <openssl/evp.h> 
 #include <openssl/bn.h>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <iomanip>
@@ -15,23 +16,38 @@ struct BoxKeys
 
 BoxKeys getKeyPair()
 {
-    BoxKeys keys;
-    size_t len = KEYSIZE;
+	BoxKeys keys;
+	size_t len = KEYSIZE;
 
-    EVP_PKEY_CTX * Ctx;
-    EVP_PKEY * Pkey = nullptr;
-    Ctx = EVP_PKEY_CTX_new_id (NID_X25519, NULL);
+	EVP_PKEY_CTX * Ctx = EVP_PKEY_CTX_new_id (NID_X25519, NULL);
+	if (!Ctx)
+	{
+		std::cerr << "EVP_PKEY_CTX_new_id failed" << std::endl;
+		exit (1);
+	}
+	EVP_PKEY * Pkey = nullptr;
+	if (EVP_PKEY_keygen_init (Ctx) != 1 ||
+		EVP_PKEY_keygen (Ctx, &Pkey) != 1)
+	{
+		std::cerr << "EVP_PKEY_keygen failed" << std::endl;
+		exit (1);
+	}
+	if (EVP_PKEY_get_raw_public_key (Pkey, keys.PublicKey, &len) != 1)
+	{
+		std::cerr << "EVP_PKEY_get_raw_public_key failed" << std::endl;
+		exit (1);
+	}
+	len = KEYSIZE;
+	if (EVP_PKEY_get_raw_private_key (Pkey, keys.PrivateKey, &len) != 1)
+	{
+		std::cerr << "EVP_PKEY_get_raw_private_key failed" << std::endl;
+		exit (1);
+	}
 
-    EVP_PKEY_keygen_init (Ctx);
-    EVP_PKEY_keygen (Ctx, &Pkey);
+	EVP_PKEY_CTX_free(Ctx);
+	EVP_PKEY_free(Pkey);
 
-    EVP_PKEY_get_raw_public_key (Pkey, keys.PublicKey, &len);
-    EVP_PKEY_get_raw_private_key (Pkey, keys.PrivateKey, &len);
-
-    EVP_PKEY_CTX_free(Ctx);
-    EVP_PKEY_free(Pkey);
-
-    return keys;
+	return keys;
 }
 
 int tool_x25519(int argc, char *argv[])
@@ -52,6 +68,12 @@ int tool_x25519(int argc, char *argv[])
             << "https://i2pd.readthedocs.io/en/latest/user-guide/tunnels/" << std::endl;
 
             return 0;
+        }
+        else
+        {
+            std::cerr << "Unknown argument '" << arg << "'" << std::endl;
+            std::cerr << "usage: " << argv[0] << " [--usage|--help|-h]" << std::endl;
+            return 1;
         }
     }
 

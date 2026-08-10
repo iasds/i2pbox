@@ -9,6 +9,8 @@
 #define CIN_CLEAR std::cin.clear(); std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 #define HTTP_SUPPORTS_LANGUAGE "german, italian, polish, portuguese, russian, spanish, turkish, turkmen, ukrainian, uzbek"
 namespace AutoConf {
+	// set to true when stdin is exhausted; all input loops must bail out
+	bool g_eof = false;
 	//
 	namespace Regexps {
 			//const std::regex port("\\d{1,5}");
@@ -20,7 +22,6 @@ namespace AutoConf {
 namespace PreInitConfigs {
 	constexpr const char * yggOnlyConf = "ipv4=false\r\n"
 										"ipv6=false\r\n"
-										"ssu=false\r\n"
 										"ntcp2.enabled=false\r\n"
 										"ssu2.enabled=false\r\n"
 										"meshnets.yggdrasil=true\r\n";
@@ -109,16 +110,23 @@ const std::map<std::string, AsksT> Texts = // maybe vector better
 // Functions
 bool AskYN(void) noexcept {
 	while (true) {
-		char answ; 
+		char answ = 0;
 		std::cout << " ? (y/n) ";
-		std::cin >> answ;
+		if (!(std::cin >> answ)) {
+			g_eof = true;
+			return false;
+		}
 		CIN_CLEAR;
 		switch(answ) {
 			case 'y':
 			case 'Y':
+			case 'д':
+			case 'Д':
 				return true;
 			case 'n':
 			case 'N':
+			case 'н':
+			case 'Н':
 				return false;
 		}
 	}
@@ -127,8 +135,11 @@ std::string GetLanguage(void) noexcept {
 	while (true) {
 		std::string lang;
 		std::cout << "Language/Язык:\r\nru - русский\r\nen - английский\r\n";
-		std::cin >> lang;
-		CIN_CLEAR; 
+		if (!(std::cin >> lang)) {
+			g_eof = true;
+			return "en";
+		}
+		CIN_CLEAR;
 		if (Texts.find(lang) != Texts.end()) {
 			return lang;
 		}
@@ -138,10 +149,13 @@ std::string GetLanguage(void) noexcept {
 
 bool IsOnlyYggdrasil(const std::string & lang) noexcept {
 	while (true) {
-		unsigned short answ;
+		unsigned short answ = 0;
 		std::cout << AutoConf::Texts.at(lang).at("WelcomeText") << std::endl;
-		std::cin >> answ; 	
-		CIN_CLEAR; 
+		if (!(std::cin >> answ)) {
+			g_eof = true;
+			return false;
+		}
+		CIN_CLEAR;
 		switch(answ) {
 			case 1: return false;
 			case 2: return true;
@@ -153,9 +167,11 @@ bool IsOnlyYggdrasil(const std::string & lang) noexcept {
 
 int tool_autoconf_i2pd(int, char**) {
 	std::cout << "https://i2pd.readthedocs.io/en/latest/user-guide/configuration/\r\nhttps://github.com/PurpleI2P/i2pd/blob/openssl/contrib/i2pd.conf\r\n";
-	std::ostringstream conf; 
+	std::ostringstream conf;
 	auto lang = AutoConf::GetLanguage();
+	if (AutoConf::g_eof) return 1;
 	auto isOnlyYgg = AutoConf::IsOnlyYggdrasil(lang);
+	if (AutoConf::g_eof) return 1;
 	if (isOnlyYgg) {
 		#ifndef _WIN32
 			conf << "daemon=true\r\n";
@@ -171,7 +187,7 @@ int tool_autoconf_i2pd(int, char**) {
 								while(1) {\
 								std::cout << AutoConf::Texts.at(lang).at(B) << "\r\n"; \
 								std::string inp; \
-								std::cin >> inp;\
+								if (!(std::cin >> inp)) { AutoConf::g_eof = true; break; } \
 								CIN_CLEAR; \
 									std::smatch bmatch;\
 									std::regex_match(inp, bmatch, REGEX);\
@@ -200,9 +216,8 @@ int tool_autoconf_i2pd(int, char**) {
 				// TODO: - to constexpr or just const and use this const in text formating
 				#define ASK_TEXT(A, B) {\
 					std::cout << AutoConf::Texts.at(lang).at(A) << std::endl;\
-					std::string inp; std::cin >> inp;CIN_CLEAR;  if (inp != "-") {\
-							conf << B "=" << inp << "\r\n";\
-					}\
+					std::string inp; if (!(std::cin >> inp)) { AutoConf::g_eof = true; } \
+					else { CIN_CLEAR; if (inp != "-") { conf << B "=" << inp << "\r\n"; } }\
 				}
 				ASK_TEXT("FamilyUsing","family");
 				ASK_BOOL("BeFloodfillYN", "floodfill");
@@ -211,14 +226,42 @@ int tool_autoconf_i2pd(int, char**) {
 				ASK_TEXT("Share","share");
 				///// With sections
 				conf << "[ntcp2]\r\n";
-				ASK_BOOL("NTCPEnabledYN", "enabled");
-				ASK_BOOL("NTCPPublishedYN", "published");
-				ASK_TEXT("NTCPPPort", "port");
-				ASK_TEXT("NTCPPProxy", "proxy");
+				std::cout << AutoConf::Texts.at(lang).at("NTCPEnabledYN") << std::endl;
+				bool ntcpEnabled = AutoConf::AskYN();
+				conf << "enabled=" << (ntcpEnabled ? "true" : "false") << "\r\n";
+				if (ntcpEnabled)
+				{
+					// only ask for published/port/proxy when NTCP is enabled
+					std::cout << AutoConf::Texts.at(lang).at("NTCPPublishedYN") << std::endl;
+					bool published = AutoConf::AskYN();
+					conf << "published=" << (published ? "true" : "false") << "\r\n";
+					std::cout << AutoConf::Texts.at(lang).at("NTCPPPort") << std::endl;
+					std::string inp;
+					if (!(std::cin >> inp)) { AutoConf::g_eof = true; return 1; }
+					CIN_CLEAR;
+					if (inp != "-") conf << "port=" << inp << "\r\n";
+					std::cout << AutoConf::Texts.at(lang).at("NTCPPProxy") << std::endl;
+					if (!(std::cin >> inp)) { AutoConf::g_eof = true; return 1; }
+					CIN_CLEAR;
+					if (inp != "-") conf << "proxy=" << inp << "\r\n";
+				}
 				conf << "[ssu2]\r\n";
-				ASK_BOOL("SSUEnabledYN", "enabled");
-				ASK_TEXT("SSUPPort", "port");
-				ASK_TEXT("SSUProxy", "proxy");
+				std::cout << AutoConf::Texts.at(lang).at("SSUEnabledYN") << std::endl;
+				bool ssuEnabled = AutoConf::AskYN();
+				conf << "enabled=" << (ssuEnabled ? "true" : "false") << "\r\n";
+				if (ssuEnabled)
+				{
+					// only ask for port/proxy when SSU is enabled
+					std::cout << AutoConf::Texts.at(lang).at("SSUPPort") << std::endl;
+					std::string inp;
+					if (!(std::cin >> inp)) { AutoConf::g_eof = true; return 1; }
+					CIN_CLEAR;
+					if (inp != "-") conf << "port=" << inp << "\r\n";
+					std::cout << AutoConf::Texts.at(lang).at("SSUProxy") << std::endl;
+					if (!(std::cin >> inp)) { AutoConf::g_eof = true; return 1; }
+					CIN_CLEAR;
+					if (inp != "-") conf << "proxy=" << inp << "\r\n";
+				}
 				conf << "[http]\r\n";
 				ASK_TEXT("HTTPLang", "lang");
 				#undef ASK_TEXT
@@ -236,9 +279,13 @@ int tool_autoconf_i2pd(int, char**) {
 	std::getline(std::cin, outFileName);  
 	//TODO: to constxpr
 	if (outFileName.length() == 0) outFileName = "i2pd_.conf";
-	std::ofstream confFile(outFileName); 
+	std::ofstream confFile(outFileName);
 	confFile << conf.str();
 	confFile.close();
+	if (!confFile) {
+		std::cerr << "Failed to write config to " << outFileName << std::endl;
+		return 1;
+	}
 	return 0;
 }
 

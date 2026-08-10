@@ -10,7 +10,12 @@ int tool_keygen(int argc, char *argv[])
 	if (argc < 2)
 	{
 		std::cout << "Usage: keygen filename <signature type>" << std::endl;
-		return -1;
+		return 1;
+	}
+	if ((argc > 1 && argv[1][0] == '-') || (argc > 2 && argv[2][0] == '-'))
+	{
+		std::cout << "Usage: keygen filename <signature type>" << std::endl;
+		return 1;
 	}
 	i2p::data::SigningKeyType type = i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
 	if (argc > 2) {
@@ -24,6 +29,11 @@ int tool_keygen(int argc, char *argv[])
 	    type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096) {
 		std::cerr << "Warning: RSA signature type is not supported. Using EdDSA instead." << std::endl;
 		type = i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519;
+	}
+	if (i2pbox::FileExists(argv[1]))
+	{
+		std::cerr << "Destination " << argv[1] << " already exists" << std::endl;
+		return 1;
 	}
 	auto keys = i2p::data::PrivateKeys::CreateRandomKeys (type);
 	{

@@ -5,12 +5,32 @@
 #include "Base.h"
 #include <openssl/crypto.h>
 
+static bool isValidName (const char * name)
+{
+	size_t len = 0;
+	for (const char * p = name; *p; p++)
+	{
+		if (len >= 255) return false;
+		const unsigned char c = *p;
+		if ((c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '.' && c != '-' && c != '_')
+			return false;
+		len++;
+	}
+	return len > 0;
+}
+
 int tool_regaddralias(int argc, char *argv[])
 {
 	if (argc < 4)
 	{
 		std::cout << "Usage: regaddralias oldfilename newfilename address" << std::endl;
-		return -1;
+		return 1;
+	}
+
+	if (!isValidName (argv[3]))
+	{
+		std::cerr << "Invalid address name " << argv[3] << std::endl;
+		return 1;
 	}
 
 	i2p::data::PrivateKeys oldkeys, newkeys;
@@ -20,6 +40,11 @@ int tool_regaddralias(int argc, char *argv[])
 		{
 			s.seekg (0, std::ios::end);
 			size_t len = s.tellg();
+			if (len == (size_t)-1 || len > 64*1024*1024)
+			{
+				std::cerr << "Failed to read keyfile " << argv[1] << std::endl;
+				return 1;
+			}
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
@@ -28,7 +53,7 @@ int tool_regaddralias(int argc, char *argv[])
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
 				OPENSSL_cleanse(buf, len);
 				delete[] buf;
-				return -1;
+				return 1;
 			}
 			OPENSSL_cleanse(buf, len);
 			delete[] buf;
@@ -36,7 +61,7 @@ int tool_regaddralias(int argc, char *argv[])
 		else
 		{
 			std::cout << "Can't open keyfile " << argv[1] << std::endl;
-			return -1;
+			return 1;
 		}
 	}
 
@@ -46,6 +71,11 @@ int tool_regaddralias(int argc, char *argv[])
 		{
 			s.seekg (0, std::ios::end);
 			size_t len = s.tellg();
+			if (len == (size_t)-1 || len > 64*1024*1024)
+			{
+				std::cerr << "Failed to read keyfile " << argv[2] << std::endl;
+				return 1;
+			}
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
@@ -54,7 +84,7 @@ int tool_regaddralias(int argc, char *argv[])
 				std::cout << "Failed to load keyfile " << argv[2] << std::endl;
 				OPENSSL_cleanse(buf, len);
 				delete[] buf;
-				return -1;
+				return 1;
 			}
 			OPENSSL_cleanse(buf, len);
 			delete[] buf;
@@ -62,7 +92,7 @@ int tool_regaddralias(int argc, char *argv[])
 		else
 		{
 			std::cout << "Can't open keyfile " << argv[2] << std::endl;
-			return -1;
+			return 1;
 		}
 	}
 
@@ -72,7 +102,7 @@ int tool_regaddralias(int argc, char *argv[])
 	out << "#!action=adddest#olddest=";
 	out << oldkeys.GetPublic ()->ToBase64 ();
 
-	auto oldSignatureLen = oldkeys.GetPublic ()->GetSignatureLen ();
+	auto oldSignatureLen = oldkeys.GetSignatureLen ();
 	uint8_t * oldSignature = new uint8_t[oldSignatureLen];
 	//char * oldSig = new char[oldSignatureLen*2];
 	oldkeys.Sign ((uint8_t *)out.str ().c_str (), out.str ().length (), oldSignature);
@@ -83,7 +113,7 @@ int tool_regaddralias(int argc, char *argv[])
 		delete[] oldSignature;
 	//delete[] oldSig;
 
-	auto signatureLen = newkeys.GetPublic ()->GetSignatureLen ();
+	auto signatureLen = newkeys.GetSignatureLen ();
 	uint8_t * signature = new uint8_t[signatureLen];
 	//char * sig = new char[signatureLen*2];
 	newkeys.Sign ((uint8_t *)out.str ().c_str (), out.str ().length (), signature);
