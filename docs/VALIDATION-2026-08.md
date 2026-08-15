@@ -75,3 +75,15 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | b33address harness OOM on pathological input | 30s fuzz, `out-of-memory (used: 2064Mb)` | **harness bug**: no input-size cap; real destinations are ~600-char lines. Added a 1 MiB cap. Production reads a single stdin line (same behavior, no change). |
 | OpenSSL 3 internal RSS growth in b33address | 20k-iteration runs: +1.8 KB/call; LSan reports nothing (objects reachable from OpenSSL globals) | **not i2pbox code, no leak report, no CLI impact**; `run_fuzz_smoke.sh` now passes `-rss_limit_mb=4096`. |
 | Fixed harnesses survive extended fuzzing | `run_fuzz_smoke.sh 30` after fixes | PASS: all 4 targets, 30 s each, 0 crashes |
+
+## 8. Additional validation (2026-08-15)
+
+| Check | Observed result |
+|---|---|
+| `--help` anywhere in the arg list (`keygen --help foo`, `routerinfo -fp --help`) | exit 0, usage printed |
+| SECURITY.md relative link target `specs/001-security-audit/` resolves | present |
+| famtool `-e` bounds: 36500 accepted, 36501 rejected | 0 / 1 |
+| All three GitHub workflow files parse as YAML | OK; ci.yml jobs = test, fuzz-smoke |
+| README example (`regaddr` host-record format) matches actual output | matches |
+| All 10 commits GPG-signed, signatures verify | "Good signature" (iasds) |
+| Commit contents contain no stray artifacts | diff stat: 35 files, 1513 insertions, 83 deletions, no binaries/.o |
