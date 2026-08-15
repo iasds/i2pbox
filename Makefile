@@ -93,7 +93,7 @@ strip:
 	strip $(BINARY)
 
 count:
-	wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null
+	@wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null || true
 
 test: $(BINARY) tests/gen_router_info
 	./tests/test_cli.sh ./$(BINARY) ./tests/gen_router_info
