@@ -16,8 +16,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
     // a sane cap for router.info documents (published ones are a few KB)
     if (size > 4u * 1024u * 1024u)
         return 0;
+    // mirror the production tool: only touch the parsed router when it is
+    // reachable; malformed input leaves m_RouterIdentity null and touching
+    // it would crash
     i2p::data::RouterInfo ri(data, size);
-    (void)ri.IsUnreachable();
+    if (ri.IsUnreachable())
+        return 0;
     (void)ri.GetIdentHashBase64();
     return 0;
 }

@@ -66,3 +66,12 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | b33 store-hash test no longer date-dependent | assertion checks format; `make test` passes any day | PASS |
 | specs/001-security-audit restored (was deleted in 4500d6c) | `git ls-files specs` shows 5 files | observed |
 | fuzz smoke scripts resolve the repo root correctly | both scripts `cd dirname/../..`; both smoke runs exercise real files | observed |
+
+## 7. Deep validation (extended fuzzing, 2026-08-15)
+
+| Finding | Check | Observed result |
+|---|---|---|
+| routerinfo harness crashed on malformed input | 30s fuzz, exit 71 (ASan SEGV in `ByteStreamToBase64` + UBSan null `IdentityEx` call) | **harness bug, not product**: production `routerinfo` rejects the same input (`Error: Cannot read router info`); the harness touched `GetIdentHashBase64()` without the production `IsUnreachable()` gate. Fixed harness to mirror production. |
+| b33address harness OOM on pathological input | 30s fuzz, `out-of-memory (used: 2064Mb)` | **harness bug**: no input-size cap; real destinations are ~600-char lines. Added a 1 MiB cap. Production reads a single stdin line (same behavior, no change). |
+| OpenSSL 3 internal RSS growth in b33address | 20k-iteration runs: +1.8 KB/call; LSan reports nothing (objects reachable from OpenSSL globals) | **not i2pbox code, no leak report, no CLI impact**; `run_fuzz_smoke.sh` now passes `-rss_limit_mb=4096`. |
+| Fixed harnesses survive extended fuzzing | `run_fuzz_smoke.sh 30` after fixes | PASS: all 4 targets, 30 s each, 0 crashes |

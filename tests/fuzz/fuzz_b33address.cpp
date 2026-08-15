@@ -19,6 +19,10 @@ static const bool kCryptoInit = [] {
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
     (void)kCryptoInit;
+    // real destinations are a single base64 line (~600 chars); cap far above
+    // that so pathological fuzz inputs cannot exhaust memory
+    if (size > 1024u * 1024u)
+        return 0;
     std::string base64(reinterpret_cast<const char *>(data), size);
     auto ident = std::make_shared<i2p::data::IdentityEx>();
     std::vector<uint8_t> buf(base64.length()); // binary data can't exceed base64

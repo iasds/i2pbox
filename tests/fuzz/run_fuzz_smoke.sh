@@ -17,8 +17,12 @@ for t in base64_decode b33address keyinfo routerinfo; do
         cp -a "$seeds"/. "$tmpcorpus"/
     fi
     echo "== $t (${seconds}s) =="
+    # -rss_limit_mb=4096: the b33address target runs BlindedPublicKey, whose
+    # OpenSSL 3 internals grow RSS slowly (~1.8 KB/call, invisible to LSan,
+    # not in i2pbox code). 4096 MB fits CI runners and comfortably covers the
+    # smoke budget; single CLI runs are unaffected.
     if timeout "$((seconds + 15))" "$target" "$tmpcorpus" -max_total_time="$seconds" \
-        -print_final_stats=1 >/tmp/fuzz-$t.log 2>&1; then
+        -rss_limit_mb=4096 -print_final_stats=1 >/tmp/fuzz-$t.log 2>&1; then
         echo "  ok"
     else
         rc=$?
