@@ -57,3 +57,21 @@ jobs:
         run: make fuzz-build
       - name: Smoke fuzz each parser
         run: ./tests/fuzz/run_fuzz_smoke.sh 15
+
+  interop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential golang-go openjdk-21-jdk-headless libboost-program-options-dev libssl-dev zlib1g-dev
+      - name: Build
+        run: make -j"$(nproc)"
+      - name: Cross-validate against go-i2p and emissary
+        run: ./tests/interop/run_interop.sh ./i2pbox "go rust"
+      - name: Cross-validate against i2p-java (heavy build)
+        continue-on-error: true
+        run: ./tests/interop/run_interop.sh ./i2pbox "java"

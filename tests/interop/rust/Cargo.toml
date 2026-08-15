@@ -1,0 +1,8 @@
+[package]
+name = "interop-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64 = "0.22"
+emissary-core = { git = "https://github.com/eepnet/emissary" }

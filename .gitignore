@@ -8,6 +8,9 @@ tests/fuzz/fuzz_base64_decode
 tests/fuzz/fuzz_b33address
 tests/fuzz/fuzz_keyinfo
 tests/fuzz/fuzz_routerinfo
+tests/interop/rust/target/
+tests/interop/java/*.class
+tests/interop/go/interop_go
 dist/
 i2pd/libi2pd.a
 i2pd/obj/

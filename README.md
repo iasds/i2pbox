@@ -9,6 +9,18 @@ Before: 14 binaries, 14 compilations
 After:  1 binary, 1 make, 14 subcommands
 ```
 
+## I2P ecosystem positioning
+
+i2pbox is an I2P **data-format toolkit**: it creates and inspects the
+standard I2P data structures (keys, destinations, addresses, records) that
+every router implementation speaks. Only `autoconf_i2pd` is i2pd-specific
+(it generates an `i2pd.conf`); the other 13 commands interoperate with any
+I2P implementation — i2pd (C++), i2p-java (Java), go-i2p (Go) and emissary
+(Rust). CI cross-validates keygen/i2pbase64/keyinfo/routerinfo outputs
+against those implementations (`make interop` locally, `interop` job in CI).
+See [docs/INTEROP.md](docs/INTEROP.md) for the compatibility matrix and the
+per-implementation private-key file formats.
+
 ## Quick Start
 
 ```bash
