@@ -1,0 +1,68 @@
+# Validation record: 2026-08 improvement batch
+
+Every explicit requirement and every changed public output below maps to a
+concrete check with its observed result. All checks ran locally on this
+machine (x86_64, g++ 14.2.0, clang 19.1.7, OpenSSL 3.5.6) against commits
+`3f9b4ed..e83b2d7` on top of `731a95a`; the only things not exercised here
+are the GitHub Actions runs (the workflows were edited but not pushed).
+
+## 1. Per-command help (feat 3f9b4ed, test d9694a8)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| 11 commands (keygen keyinfo routerinfo regaddr regaddr_3ld i2pbase64 offlinekeys b33address regaddralias verifyhost autoconf_i2pd) accept `--help`, print usage, exit 0 | `tests/test_cli.sh` "help" group: `expect_ok "$c --help"` + `expect_match "^Usage: i2pbox ${c} "` | PASS (`make test`, 2026-08-15) |
+| vain/x25519/famtool keep their own help | `vain --help`, `x25519 --help`, `famtool -h` exit 0 | PASS |
+| `keygen --help` is a valid help flag, `--bogus` still rejected as filename | `expect_ok keygen --help`; `expect_failure keygen --bogus` | PASS |
+| Top-level usage table unchanged | version/help groups | PASS |
+
+## 2. Fuzzing (refactor 377ae8b, feat 2c60f4d, fix e83b2d7)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| 4 libFuzzer targets build with clang | `make fuzz-build` (clang++, `-fsanitize=fuzzer,address,undefined`) | PASS: 4 binaries produced (2.2–56 MB) |
+| Each target survives real fuzzing on its corpus | `tests/fuzz/run_fuzz_smoke.sh 10` | PASS: base64_decode, b33address, keyinfo, routerinfo all ok, 0 crashes |
+| Shared decoder `decode_base64_string` is behavior-preserving | `make test` i2pbase64 group (vectors, CRLF, random roundtrip) | PASS |
+| No memory errors under sanitizers | ASan+UBSan build + full `make test` (`detect_leaks=1 halt_on_error=1`) | PASS |
+| Smoke scripts run the real corpus (not a silent skip) | repo-root resolution fixed (`../..`); standalone smoke reports PASS only when every corpus file runs | PASS (was a false PASS before e83b2d7) |
+| CI has a fuzz-smoke job | `.github/workflows/ci.yml` contains `fuzz-smoke` job | present (not executed: not pushed) |
+| Committed seeds are not polluted by fuzz runs | `run_fuzz_smoke.sh` fuzzes a temp copy; `git status tests/fuzz/corpus` clean except untracked artifacts | observed |
+
+## 3. Security docs and dangling spec reference (docs e2d61ba)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| `.specify/feature.json` target directory exists | `specs/001-security-audit/{spec,plan,report,research,checklists/requirements}.md` present and tracked | observed (5 files restored from 4500d6c^) |
+| SECURITY.md present | file exists, links to GitHub private reporting | observed |
+| CONTRIBUTING.md present | file exists, documents dev loop + sanitizer flags | observed |
+| README platform matrix is honest | "Platform support" table: Linux ✅/✅, macOS/FreeBSD/Windows ⚠️/❌ | observed |
+
+## 4. Build fixes (build b0d94fc)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| Bare `make` builds the whole project (not just main.o) | `.DEFAULT_GOAL := all`; `touch main.cpp && make` recompiles main.o and relinks | observed (was building only main.o before) |
+| libi2pd.a update does not recompile objects | `touch i2pd/libi2pd.a && make -n`: 0 `-c`, 1 link | observed |
+| Single-file change recompiles only that file | `touch main.cpp && make -n`: only `-o main.o` | observed |
+| Full regression after clean rebuild | `make clean && make -j2 && make test` | PASS |
+
+## 5. famtool password protection and validity (feat 22ecf88)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| `-P` writes an encrypted private key | `head -2` of key shows `Proc-Type: 4,ENCRYPTED`; mode 0600 | observed |
+| Encrypted PEM is standard OpenSSL format | `openssl ec -in key -passin pass:... -noout` exit 0 (correct pw), exit 1 (wrong pw), exit 1 (no pw) | observed |
+| `-P` signs and `-V` verifies a protected family | `famtool -s ... -P` + `famtool -V ...` | PASS |
+| Wrong password fails with non-zero exit | `expect_failure` + manual run: exit 1 | PASS |
+| No password on encrypted key fails fast (no tty hang) | `expect_failure` + manual run: exit 1 immediately | PASS |
+| `-e` sets validity, default 3650 | `openssl x509 -noout -dates`: notAfter = notBefore + 30d for `-e 30` | observed |
+| `-e 0`, `-e abc` rejected | both exit 1 with "invalid validity days" | observed |
+| Legacy unencrypted keys keep working | `famtool -g/-s/-V` without `-P` | PASS |
+| Failed signing returns 1 and does not print "signed" | manual: "failed to sign router info", exit 1, no "signed" line | observed |
+
+## 6. Incidental fixes folded into the batch
+
+| Changed output | Check | Observed result |
+|---|---|---|
+| b33 store-hash test no longer date-dependent | assertion checks format; `make test` passes any day | PASS |
+| specs/001-security-audit restored (was deleted in 4500d6c) | `git ls-files specs` shows 5 files | observed |
+| fuzz smoke scripts resolve the repo root correctly | both scripts `cd dirname/../..`; both smoke runs exercise real files | observed |
