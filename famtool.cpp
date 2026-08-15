@@ -22,7 +22,7 @@ using namespace i2p::data;
 
 static void usage(const std::string & name)
 {
-	std::cout << "usage: " << name << " [-h] [-v] [-g -n family -c family.crt -k family.pem] [-s -n family -k family.pem -i router.keys -f router.info] [-V -c family.crt -f router.info]" << std::endl;
+	std::cout << "usage: " << name << " [-h] [-v] [-g -n family -c family.crt -k family.pem [-P password] [-e days]] [-s -n family -k family.pem [-P password] -i router.keys -f router.info] [-V -c family.crt -f router.info]" << std::endl;
 }
 
 static void printhelp(const std::string & name)
@@ -30,11 +30,18 @@ static void printhelp(const std::string & name)
 	usage(name);
 	std::cout << std::endl;
 	std::cout << "generate a new family signing key for family called ``i2pfam''" << std::endl;
-	std::cout << name << " -g -n i2pfam -c myfam.crt -k myfam.pem" << std::endl << std::endl;
-	std::cout << "sign a router info with family signing key" << std::endl;
-	std::cout << name << " -s -n i2pfam -k myfam.pem -i router.keys -f router.info" << std::endl << std::endl;
+	std::cout << name << " -g -n i2pfam -c myfam.crt -k myfam.pem" << std::endl;
+	std::cout << name << " -g -n i2pfam -c myfam.crt -k myfam.pem -P secret -e 3650" << std::endl << std::endl;
+	std::cout << "sign a router info with family signing key (add -P if the key is encrypted)" << std::endl;
+	std::cout << name << " -s -n i2pfam -k myfam.pem -i router.keys -f router.info" << std::endl;
+	std::cout << name << " -s -n i2pfam -k myfam.pem -P secret -i router.keys -f router.info" << std::endl << std::endl;
 	std::cout << "verify signed router.info" << std::endl;
 	std::cout << name << " -V -n i2pfam -c myfam.pem -f router.info" << std::endl << std::endl;
+	std::cout << "options:" << std::endl;
+	std::cout << "  -P password  encrypt/decrypt the family private key (AES-256-CBC)." << std::endl;
+	std::cout << "               Without -P the key is written unencrypted (legacy format)." << std::endl;
+	std::cout << "               Note: the password is visible in the process list." << std::endl;
+	std::cout << "  -e days      certificate validity in days (default 3650 = 10 years)." << std::endl;
 }
 
 static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
@@ -80,42 +87,82 @@ static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
 	return verifier;
 }
 
-static bool CreateFamilySignature (const std::string& family, const IdentHash& ident, const std::string & filename, std::string & sig)
+// Password callback for PEM_read_bio_ECPrivateKey. OpenSSL's default callback
+// prompts on the terminal, which would hang non-interactive runs; supply the
+// password programmatically or fail immediately.
+static int PasswordCb (char * buf, int size, int /*rwflag*/, void * u)
 {
-	SSL_CTX * ctx = SSL_CTX_new (TLS_method ());
-	int ret = SSL_CTX_use_PrivateKey_file (ctx, filename.c_str (), SSL_FILETYPE_PEM); 
-	bool ok = false;
-	if (ret)
-	{
-		SSL * ssl = SSL_new (ctx);
-		EVP_PKEY * pkey = SSL_get_privatekey (ssl);
-		EC_KEY * ecKey = EVP_PKEY_get1_EC_KEY (pkey);
-		if (ecKey)
-		{
-			auto group = EC_KEY_get0_group (ecKey);
-			if (group)
-			{
-				int curve = EC_GROUP_get_curve_name (group);
-				if (curve == NID_X9_62_prime256v1)
-				{
-					uint8_t signingPrivateKey[32], buf[50], signature[64];
-					bn2buf (EC_KEY_get0_private_key (ecKey), signingPrivateKey, 32);
-					ECDSAP256Signer signer (signingPrivateKey);
-					size_t len = family.length ();
-					memcpy (buf, family.c_str (), len);
-					memcpy (buf + len, (const uint8_t *)ident, 32);
-					len += 32;
-					signer.Sign (buf, len, signature);
-					sig = ByteStreamToBase64 (signature, 64);
-					ok = true;
-				}
-			}
-			EC_KEY_free (ecKey);
+	if (u) {
+		const std::string * pw = static_cast<const std::string *>(u);
+		if (pw->size () < static_cast<size_t>(size)) {
+			memcpy (buf, pw->c_str (), pw->size ());
+			return static_cast<int>(pw->size ());
 		}
-		SSL_free (ssl);
 	}
-	SSL_CTX_free (ctx);
+	return 0;
+}
+
+static int NoPasswordCb (char * /*buf*/, int /*size*/, int /*rwflag*/, void * /*u*/)
+{
+	return 0; // never prompt; fail cleanly instead
+}
+
+static bool CreateFamilySignature (const std::string& family, const IdentHash& ident,
+	const std::string & filename, const std::string & password, std::string & sig)
+{
+	BIO * bio = BIO_new_file (filename.c_str (), "r");
+	if (!bio)
+		return false;
+	EC_KEY * ecKey;
+	if (password.empty ()) {
+		// Encrypted keys fail immediately instead of prompting on the tty.
+		ecKey = PEM_read_bio_ECPrivateKey (bio, nullptr, NoPasswordCb, nullptr);
+	} else {
+		ecKey = PEM_read_bio_ECPrivateKey (bio, nullptr, PasswordCb, (void *)&password);
+	}
+	BIO_free (bio);
+	bool ok = false;
+	if (ecKey)
+	{
+		auto group = EC_KEY_get0_group (ecKey);
+		if (group)
+		{
+			int curve = EC_GROUP_get_curve_name (group);
+			if (curve == NID_X9_62_prime256v1)
+			{
+				uint8_t signingPrivateKey[32], buf[50], signature[64];
+				bn2buf (EC_KEY_get0_private_key (ecKey), signingPrivateKey, 32);
+				ECDSAP256Signer signer (signingPrivateKey);
+				size_t len = family.length ();
+				memcpy (buf, family.c_str (), len);
+				memcpy (buf + len, (const uint8_t *)ident, 32);
+				len += 32;
+				signer.Sign (buf, len, signature);
+				sig = ByteStreamToBase64 (signature, 64);
+				ok = true;
+				OPENSSL_cleanse (signingPrivateKey, 32);
+			}
+		}
+		EC_KEY_free (ecKey);
+	}
 	return ok;
+}
+
+static bool ParseValidityDays (const char * s, long & days)
+{
+	if (!s || !*s)
+		return false;
+	for (const char * p = s; *p; ++p)
+		if (!std::isdigit (static_cast<unsigned char>(*p)))
+			return false;
+	char * end = nullptr;
+	long v = strtol (s, &end, 10);
+	if (end && *end)
+		return false;
+	if (v <= 0 || v > 36500) // at most 100 years
+		return false;
+	days = v;
+	return true;
 }
 
 int tool_famtool(int argc, char *argv[])
@@ -136,13 +183,24 @@ int tool_famtool(int argc, char *argv[])
 	std::string infile;
 	std::string infofile;
 	std::string outfile;
-	while((opt = getopt(argc, argv, "vVhgsn:i:c:k:o:f:")) != -1) {
+	std::string password;
+	long days = 3650; // default: 10 years (legacy hardcoded value)
+	while((opt = getopt(argc, argv, "vVhgsn:i:c:k:o:f:P:e:")) != -1) {
 		switch(opt) {
 		case 'v':
 			verbose = true;
 			break;
 		case 'h':
 			help = true;
+			break;
+		case 'P':
+			password = std::string(argv[optind-1]);
+			break;
+		case 'e':
+			if (!ParseValidityDays(argv[optind-1], days)) {
+				std::cout << "invalid validity days (must be 1..36500)" << std::endl;
+				return 1;
+			}
 			break;
 		case 'g':
 			gen = true;
@@ -232,8 +290,12 @@ int tool_famtool(int argc, char *argv[])
 		EC_KEY_set_asn1_flag(k_priv, OPENSSL_EC_NAMED_CURVE);
 		EC_KEY_generate_key(k_priv);
 		if(verbose) std::cout << "generated key" << std::endl;
-		// TODO: password protection
-		PEM_write_ECPrivateKey(privf, k_priv, nullptr, nullptr, 0, nullptr, nullptr);
+		// -P encrypts the private key (AES-256-CBC); without it the legacy
+		// unencrypted PEM format is written for backward compatibility.
+		PEM_write_ECPrivateKey(privf, k_priv,
+			password.empty () ? nullptr : EVP_aes_256_cbc (),
+			password.empty () ? nullptr : (const unsigned char *)password.c_str (),
+			(int)password.size (), nullptr, nullptr);
 		fclose(privf);
 		if(verbose) std::cout << "wrote private key" << std::endl;
 
@@ -248,8 +310,7 @@ int tool_famtool(int argc, char *argv[])
 		X509_set_version(x, 2);
 		ASN1_INTEGER_set(X509_get_serialNumber(x), 0);
 		X509_gmtime_adj(X509_get_notBefore(x),0);
-		// TODO: make expiration date configurable
-		X509_gmtime_adj(X509_get_notAfter(x),(long)60*60*24*365*10);
+		X509_gmtime_adj(X509_get_notAfter(x),(long)60*60*24*days); // -e, default 10 years
 
 		X509_set_pubkey(x, ev_k);
 
@@ -339,18 +400,20 @@ int tool_famtool(int argc, char *argv[])
 
 		if (verbose) std::cout << "add " << ident.ToBase64() << " to " << fam << std::endl;
 		std::string sig;
-		if(CreateFamilySignature(fam, ident, privkey, sig)) {
+		if(CreateFamilySignature(fam, ident, privkey, password, sig)) {
 			ri.SetProperty(ROUTER_INFO_PROPERTY_FAMILY, fam);
 			ri.SetProperty(ROUTER_INFO_PROPERTY_FAMILY_SIG, sig);
 			if (verbose) std::cout << "signed " << sig << std::endl;
 			ri.CreateBuffer(keys);
 			if(!ri.SaveToFile(infofile)) {
 				std::cout << "failed to save to " << infofile << std::endl;
+				return 1;
 			}
+			std::cout << "signed" << std::endl;
 		} else {
 			std::cout << "failed to sign router info" << std::endl;
+			return 1;
 		}
-		std::cout << "signed" << std::endl;
 	}
 
 	if(verify) {
