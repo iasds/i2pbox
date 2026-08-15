@@ -88,3 +88,7 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | README example (`regaddr` host-record format) matches actual output | matches |
 | All 10 commits GPG-signed, signatures verify | "Good signature" (iasds) |
 | Commit contents contain no stray artifacts | diff stat: 35 files, 1513 insertions, 83 deletions, no binaries/.o |
+| `-h` / `--help` / `help` at top level are equivalent | diff of the three outputs | identical |
+| famtool `-P` is ignored by verify, `-e` ignored by sign | verify on signed router.info with `-P`: 0; sign with `-e`: 0 | PASS |
+| `.specify/feature.json` parses and points at the restored dir | `json.load` + assert | valid |
+| `make count` tolerates missing globs (`common/*.hpp`) | `make count` | fixed: exit 0 (was Error 1) |
