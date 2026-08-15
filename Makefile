@@ -98,6 +98,9 @@ count:
 test: $(BINARY) tests/gen_router_info
 	./tests/test_cli.sh ./$(BINARY) ./tests/gen_router_info
 
+interop: $(BINARY) tests/gen_router_info
+	./tests/interop/run_interop.sh ./$(BINARY) "go rust java"
+
 tests/gen_router_info: tests/gen_router_info.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
 
@@ -145,4 +148,4 @@ tests/fuzz/fuzz_routerinfo_standalone: tests/fuzz/fuzz_routerinfo.cpp tests/fuzz
 install: $(BINARY)
 	install -m 755 $(BINARY) /usr/local/bin/
 
-.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test fuzz-build fuzz-smoke
+.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test fuzz-build fuzz-smoke interop
