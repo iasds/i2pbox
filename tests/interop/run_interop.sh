@@ -25,6 +25,14 @@ fail() {
 }
 
 # --- produce i2pbox artifacts ------------------------------------------------
+# gen_router_info is a test helper built from source; build it if a caller
+# invokes this script directly (without the make interop target).
+if [[ ! -x tests/gen_router_info ]]; then
+    make tests/gen_router_info >/dev/null 2>&1 || {
+        echo "cannot build tests/gen_router_info" >&2
+        exit 1
+    }
+fi
 "$binary" keygen "$tmpdir/router.keys" 7 >/dev/null 2>&1
 dest=$("$binary" keyinfo -d "$tmpdir/router.keys")
 b32=$("$binary" keyinfo "$tmpdir/router.keys")
