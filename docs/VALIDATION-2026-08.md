@@ -58,6 +58,7 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | `-e 0`, `-e abc` rejected | both exit 1 with "invalid validity days" | observed |
 | Legacy unencrypted keys keep working | `famtool -g/-s/-V` without `-P` | PASS |
 | Failed signing returns 1 and does not print "signed" | manual: "failed to sign router info", exit 1, no "signed" line | observed |
+| `-g` refuses to overwrite an existing key or cert | repeat `famtool -g` on existing files: exit 1 "already exists"; fresh generation after removal works | PASS (was silent overwrite before; mirrors keygen) |
 
 ## 6. Incidental fixes folded into the batch
 
