@@ -445,6 +445,19 @@ expect_clean_failure "famtool rejects the wrong certificate" "$binary" famtool -
 expect_ok "signed router.info is still parseable" "$binary" routerinfo "$tmpdir/router.info"
 expect_match "signed router.info reports a hash" '^Router Hash: [A-Za-z0-9~=-]+=+$' "$tmpdir/stdout"
 
+# password-protected family keys (-P) and configurable validity (-e)
+pw_key="$tmpdir/pwfam.pem"
+pw_cert="$tmpdir/pwfam.crt"
+expect_ok "famtool generates an encrypted family key" "$binary" famtool -g -n pwfam -c "$pw_cert" -k "$pw_key" -P s3cret -e 30
+grep -q "ENCRYPTED" "$pw_key" || fail "famtool -P did not encrypt the private key"
+test "$(stat -c '%a' "$pw_key")" = "600" || fail "famtool did not create a 0600 encrypted family key"
+expect_ok "famtool signs with the correct password" "$binary" famtool -s -n pwfam -k "$pw_key" -P s3cret -i "$keyfile" -f "$tmpdir/router.info"
+expect_ok "famtool verifies the password-protected family" "$binary" famtool -V -n pwfam -c "$pw_cert" -f "$tmpdir/router.info"
+expect_failure "famtool rejects a wrong password" "$binary" famtool -s -n pwfam -k "$pw_key" -P wrong -i "$keyfile" -f "$tmpdir/router.info"
+expect_failure "famtool refuses an encrypted key without a password" "$binary" famtool -s -n pwfam -k "$pw_key" -i "$keyfile" -f "$tmpdir/router.info"
+expect_failure "famtool rejects -e 0" "$binary" famtool -g -n e0fam -c "$tmpdir/e0.crt" -k "$tmpdir/e0.pem" -e 0
+expect_failure "famtool rejects a non-numeric -e" "$binary" famtool -g -n eafam -c "$tmpdir/ea.crt" -k "$tmpdir/ea.pem" -e abc
+
 ###############################################################################
 # routerinfo
 ###############################################################################
