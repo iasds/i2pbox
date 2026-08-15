@@ -304,6 +304,20 @@ sudo make install   # → /usr/local/bin/i2pbox
 
 First build compiles `libi2pd.a` from the i2pd submodule (~2 minutes).
 
+### Platform support
+
+The Makefile carries branches for Linux, macOS, FreeBSD, and Windows
+(MSYS2/clang64), but **only Linux is tested by CI** (regression suite +
+ASan/UBSan on Ubuntu 24.04). Other platforms build from the same sources but
+are best-effort; please report breakage.
+
+| Platform | Build | CI-tested |
+|---|---|---|
+| Linux (glibc) | ✅ | ✅ |
+| macOS (Homebrew, openssl@3) | ⚠️ best-effort | ❌ |
+| FreeBSD | ⚠️ best-effort | ❌ |
+| Windows (MSYS2/clang64) | ⚠️ best-effort | ❌ |
+
 ## Comparison
 
 | | i2pd-tools | i2pbox |
