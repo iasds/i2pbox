@@ -3,7 +3,7 @@ set -euo pipefail
 # Corpus smoke run for the standalone fuzz drivers. No libFuzzer required
 # (works with gcc in the local dev loop). Each corpus file is fed through
 # LLVMFuzzerTestOneInput once; any crash/non-zero return fails the run.
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 fails=0
 for t in base64_decode b33address keyinfo routerinfo; do
