@@ -43,3 +43,17 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1
         run: ${{ matrix.test }}
+
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang libboost-program-options-dev libssl-dev zlib1g-dev
+      - name: Build fuzz targets
+        run: make fuzz-build
+      - name: Smoke fuzz each parser
+        run: ./tests/fuzz/run_fuzz_smoke.sh 15
