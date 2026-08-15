@@ -458,6 +458,11 @@ expect_failure "famtool refuses an encrypted key without a password" "$binary" f
 expect_failure "famtool rejects -e 0" "$binary" famtool -g -n e0fam -c "$tmpdir/e0.crt" -k "$tmpdir/e0.pem" -e 0
 expect_failure "famtool rejects a non-numeric -e" "$binary" famtool -g -n eafam -c "$tmpdir/ea.crt" -k "$tmpdir/ea.pem" -e abc
 
+# overwrite protection (family keys must not be silently clobbered)
+expect_failure "famtool refuses to overwrite an existing key" "$binary" famtool -g -n testfamily -c "$tmpdir/ow.crt" -k "$family_key"
+expect_failure "famtool refuses to overwrite an existing cert" "$binary" famtool -g -n testfamily -c "$family_cert" -k "$tmpdir/ow.pem"
+expect_ok "famtool generates a fresh family after removal" bash -c "rm -f '$tmpdir/ow2.pem' '$tmpdir/ow2.crt'; '$binary' famtool -g -n ow2fam -c '$tmpdir/ow2.crt' -k '$tmpdir/ow2.pem'"
+
 ###############################################################################
 # routerinfo
 ###############################################################################

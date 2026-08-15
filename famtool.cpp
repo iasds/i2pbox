@@ -255,6 +255,17 @@ int tool_famtool(int argc, char *argv[])
 		if(!privkey.size()) privkey = fam + ".key";
 		if(!certfile.size()) certfile = fam + ".crt";
 
+		// never silently clobber an existing family key or certificate
+		// (mirrors keygen's overwrite protection)
+		if (i2pbox::FileExists(privkey)) {
+			std::cerr << "private key " << privkey << " already exists (refusing to overwrite)" << std::endl;
+			return 1;
+		}
+		if (i2pbox::FileExists(certfile)) {
+			std::cerr << "certificate " << certfile << " already exists (refusing to overwrite)" << std::endl;
+			return 1;
+		}
+
 		std::string cn = fam + ".family.i2p.net";
 
 
