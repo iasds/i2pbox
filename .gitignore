@@ -3,6 +3,11 @@
 i2pbox
 i2pbox.exe
 tests/gen_router_info
+tests/fuzz/fuzz_*_standalone
+tests/fuzz/fuzz_base64_decode
+tests/fuzz/fuzz_b33address
+tests/fuzz/fuzz_keyinfo
+tests/fuzz/fuzz_routerinfo
 dist/
 i2pd/libi2pd.a
 i2pd/obj/

@@ -1,5 +1,10 @@
 UNAME := $(shell uname -s)
 
+# The -include of *.d files below would otherwise make the first parsed rule
+# (main.o from the generated dependency files) the default goal, so a bare
+# `make` would stop after compiling main.o. Pin the default goal to `all`.
+.DEFAULT_GOAL := all
+
 I2PD_PATH := i2pd
 I2PD_LIB := $(I2PD_PATH)/libi2pd.a
 BINARY := i2pbox
@@ -61,7 +66,12 @@ all: $(I2PD_LIB) $(BINARY)
 $(BINARY): $(OBJS) $(I2PD_LIB)
 	$(CXX) -o $@ $(LDFLAGS) $(OBJS) $(LDLIBS)
 
-%.o: %.cpp $(I2PD_LIB)
+# Header dependencies are tracked by -MMD -MP (the .d files above). libi2pd.a
+# is an order-only prerequisite so upstream submodule bumps (the weekly
+# upstream-monitor) do not force a full recompile of every object file; only
+# headers a translation unit actually includes trigger its rebuild. The link
+# step below still depends on the library normally.
+%.o: %.cpp | $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -MMD -MP -c -o $@ $<
 
 $(I2PD_LIB):
@@ -91,7 +101,48 @@ test: $(BINARY) tests/gen_router_info
 tests/gen_router_info: tests/gen_router_info.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
 
+# --- fuzzing ---------------------------------------------------------------
+# libFuzzer targets (clang): make fuzz-build, then run
+# ./tests/fuzz/run_fuzz_smoke.sh [seconds]. Local gcc smoke (no libFuzzer):
+# make fuzz-smoke.
+FUZZ_CC ?= clang++
+FUZZ_CXXFLAGS := -g -O1 -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined
+FUZZ_STANDALONE := tests/fuzz/fuzz_base64_decode_standalone \
+                   tests/fuzz/fuzz_b33address_standalone \
+                   tests/fuzz/fuzz_keyinfo_standalone \
+                   tests/fuzz/fuzz_routerinfo_standalone
+
+fuzz-build: tests/fuzz/fuzz_base64_decode tests/fuzz/fuzz_b33address \
+            tests/fuzz/fuzz_keyinfo tests/fuzz/fuzz_routerinfo
+
+fuzz-smoke: $(FUZZ_STANDALONE)
+	./tests/fuzz/run_smoke_local.sh
+
+tests/fuzz/fuzz_base64_decode: tests/fuzz/fuzz_base64_decode.cpp $(I2PD_LIB) i2pbase64.o
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< i2pbase64.o $(LDLIBS)
+
+tests/fuzz/fuzz_b33address: tests/fuzz/fuzz_b33address.cpp $(I2PD_LIB)
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
+
+tests/fuzz/fuzz_keyinfo: tests/fuzz/fuzz_keyinfo.cpp $(I2PD_LIB)
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
+
+tests/fuzz/fuzz_routerinfo: tests/fuzz/fuzz_routerinfo.cpp $(I2PD_LIB)
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
+
+tests/fuzz/fuzz_base64_decode_standalone: tests/fuzz/fuzz_base64_decode.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB) i2pbase64.o
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp i2pbase64.o $(LDLIBS)
+
+tests/fuzz/fuzz_b33address_standalone: tests/fuzz/fuzz_b33address.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
+
+tests/fuzz/fuzz_keyinfo_standalone: tests/fuzz/fuzz_keyinfo.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
+
+tests/fuzz/fuzz_routerinfo_standalone: tests/fuzz/fuzz_routerinfo.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
+
 install: $(BINARY)
 	install -m 755 $(BINARY) /usr/local/bin/
 
-.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test
+.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test fuzz-build fuzz-smoke
