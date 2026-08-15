@@ -153,6 +153,22 @@ for c in "${cmds[@]}"; do
 done
 
 ###############################################################################
+# per-command help
+###############################################################################
+
+group "help"
+# commands handled by the main dispatch layer
+for c in keygen keyinfo routerinfo regaddr regaddr_3ld i2pbase64 offlinekeys \
+         b33address regaddralias verifyhost autoconf_i2pd; do
+    expect_ok "$c --help exits cleanly" "$binary" "$c" --help
+    expect_match "$c --help shows usage" "^Usage: i2pbox ${c} " "$tmpdir/stdout"
+done
+# commands with their own help handling
+expect_ok "vain --help exits cleanly" "$binary" vain --help
+expect_ok "x25519 --help exits cleanly" "$binary" x25519 --help
+expect_ok "famtool -h exits cleanly" "$binary" famtool -h
+
+###############################################################################
 # keygen
 ###############################################################################
 
@@ -376,7 +392,6 @@ expect_failure "verifyhost rejects garbage" "$binary" verifyhost "not-a-record"
 group "b33address"
 expect_ok "b33address from the fixed EdDSA vector" "$binary" keyinfo -d "$vectors_dir/ed25519.keys"
 expected_b33=$(sed -n 1p "$vectors_dir/ed25519.b33")
-expected_hash=$(sed -n 2p "$vectors_dir/ed25519.b33")
 b33_dest=$(cat "$tmpdir/stdout")
 if ! printf '%s' "$b33_dest" | run "$binary" b33address; then
     fail "b33address from the fixed EdDSA vector failed"
@@ -385,7 +400,9 @@ else
     b33_out=$(cat "$tmpdir/stdout")
 fi
 printf '%s\n' "$b33_out" | grep -q "^b33 address: ${expected_b33}$" || fail "b33 address mismatch (got: $b33_out)"
-printf '%s\n' "$b33_out" | grep -q "^Today's store hash: ${expected_hash}$" || fail "b33 store hash mismatch (got: $b33_out)"
+# The store hash rotates daily (BlindedPublicKey::GetStoreHash uses the
+# current date), so the fixed vector value goes stale; assert format instead.
+printf '%s\n' "$b33_out" | grep -qE "^Today's store hash: [A-Za-z0-9~-]+=+$" || fail "b33 store hash format (got: $b33_out)"
 
 expect_ok "b33address from the fixed RedDSA vector" "$binary" keyinfo -d "$vectors_dir/reddsa.keys"
 expected_red=$(sed -n 1p "$vectors_dir/reddsa.b33")
@@ -490,7 +507,7 @@ expect_failure "offlinekeys rejects in-place conversion" "$binary" offlinekeys "
 
 # keygen overwrite protection and option-like names
 expect_failure "keygen refuses to overwrite an existing key" "$binary" keygen "$keyfile"
-expect_failure "keygen rejects a -- option as filename" "$binary" keygen --help
+expect_failure "keygen rejects a -- option as filename" "$binary" keygen --bogus
 
 # signature type name parsing (exact match, no substring)
 expect_failure "keygen rejects a substring signature name" "$binary" keygen "$tmpdir/s1.dat" NOTP256
