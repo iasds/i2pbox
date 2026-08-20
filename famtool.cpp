@@ -194,7 +194,7 @@ int tool_famtool(int argc, char *argv[])
 			break;
 		case 'e':
 			if (!ParseValidityDays(argv[optind-1], days)) {
-				std::cout << "invalid validity days (must be 1..36500)" << std::endl;
+				std::cerr << "invalid validity days (must be 1..36500)" << std::endl;
 				return 1;
 			}
 			break;
@@ -206,7 +206,7 @@ int tool_famtool(int argc, char *argv[])
 			// family names are case-insensitive in the I2P network; normalize to lower
 			std::transform(fam.begin(), fam.end(), fam.begin(), ::tolower);
 			if (fam.size() + 32 > 50) {
-				std::cout << "family name too long" << std::endl;
+				std::cerr << "family name too long" << std::endl;
 				return 1;
 			}
 			break;
@@ -243,7 +243,7 @@ int tool_famtool(int argc, char *argv[])
 
 	if(!fam.size()) {
 		// no family name
-		std::cout << "no family name specified" << std::endl;
+		std::cerr << "no family name specified" << std::endl;
 		return 1;
 	}
 	// generate family key code
@@ -360,7 +360,7 @@ int tool_famtool(int argc, char *argv[])
 			std::ifstream i;
 			i.open(infofile);
 			if(!i.is_open()) {
-				std::cout << "cannot open " << infofile << std::endl;
+				std::cerr << "cannot open " << infofile << std::endl;
 				return 1;
 			}
 		}
@@ -373,20 +373,20 @@ int tool_famtool(int argc, char *argv[])
 		{
 			std::ifstream fi(infile, std::ifstream::in | std::ifstream::binary);
 			if(!fi.is_open()) {
-				std::cout << "cannot open " << infile << std::endl;
+				std::cerr << "cannot open " << infile << std::endl;
 				return 1;
 			}
 			fi.seekg (0, std::ios::end);
 			size_t len = fi.tellg();
 			fi.seekg (0, std::ios::beg);
 			if (len == (size_t)-1 || len > 64*1024*1024) {
-				std::cout << "invalid key file " << infile << std::endl;
+				std::cerr << "invalid key file " << infile << std::endl;
 				return 1;
 			}
 			uint8_t * k = new uint8_t[len];
 			fi.read((char*)k, len);
 			if(!keys.FromBuffer(k, len)) {
-				std::cout << "invalid key file " << infile << std::endl;
+				std::cerr << "invalid key file " << infile << std::endl;
 				return 1;
 			}
 			OPENSSL_cleanse(k, len);
@@ -395,7 +395,7 @@ int tool_famtool(int argc, char *argv[])
 
         RouterInfo routerInfo(infofile);
 		if (routerInfo.IsUnreachable()) {
-			std::cout << "invalid router info " << infofile << std::endl;
+			std::cerr << "invalid router info " << infofile << std::endl;
 			return 1;
 		}
 		LocalRouterInfo ri;
@@ -413,28 +413,28 @@ int tool_famtool(int argc, char *argv[])
 			if (verbose) std::cout << "signed " << sig << std::endl;
 			ri.CreateBuffer(keys);
 			if(!ri.SaveToFile(infofile)) {
-				std::cout << "failed to save to " << infofile << std::endl;
+				std::cerr << "failed to save to " << infofile << std::endl;
 				return 1;
 			}
 			std::cout << "signed" << std::endl;
 		} else {
-			std::cout << "failed to sign router info" << std::endl;
+			std::cerr << "failed to sign router info" << std::endl;
 			return 1;
 		}
 	}
 
 	if(verify) {
 		if(!infofile.size()) {
-			std::cout << "no router info file specified" << std::endl;
+			std::cerr << "no router info file specified" << std::endl;
 			return 1;
 		}
 		if(!certfile.size()) {
-			std::cout << "no family certificate specified" << std::endl;
+			std::cerr << "no family certificate specified" << std::endl;
 			return 1;
 		}
 		auto v = LoadCertificate(certfile);
 		if(!v) {
-			std::cout << "invalid certificate" << std::endl;
+			std::cerr << "invalid certificate" << std::endl;
 			return 1;
 		}
 
@@ -442,7 +442,7 @@ int tool_famtool(int argc, char *argv[])
 			std::ifstream i;
 			i.open(infofile);
 			if(!i.is_open()) {
-				std::cout << "cannot open " << infofile << std::endl;
+				std::cerr << "cannot open " << infofile << std::endl;
 				return 1;
 			}
 		}
@@ -451,7 +451,7 @@ int tool_famtool(int argc, char *argv[])
 
         RouterInfo routerInfo(infofile);
 		if (routerInfo.IsUnreachable()) {
-			std::cout << "invalid router info " << infofile << std::endl;
+			std::cerr << "invalid router info " << infofile << std::endl;
 			return 1;
 		}
 		LocalRouterInfo ri;
@@ -463,7 +463,7 @@ int tool_famtool(int argc, char *argv[])
 		std::string propFamily = ri.GetProperty(ROUTER_INFO_PROPERTY_FAMILY);
 		std::transform(propFamily.begin(), propFamily.end(), propFamily.begin(), ::tolower);
 		if (propFamily != famLower) {
-			std::cout << infofile << " does not belong to " << fam << std::endl;
+			std::cerr << infofile << " does not belong to " << fam << std::endl;
 			return 1;
 		}
 		auto ident = ri.GetIdentHash();
@@ -475,7 +475,7 @@ int tool_famtool(int argc, char *argv[])
 		len += 32;
 		Base64ToByteStream(sig, sigbuf, 64);
 		if (!v->Verify(buf, len, sigbuf)) {
-			std::cout << "invalid signature" << std::endl;
+			std::cerr << "invalid signature" << std::endl;
 			return 1;
 		}
 		std::cout << "verified" << std::endl;
