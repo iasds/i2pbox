@@ -63,7 +63,7 @@ int tool_keyinfo(int argc, char *argv[])
 	std::ifstream s(fname, std::ifstream::binary);
 
 	if (!s.is_open()) {
-		std::cout << "cannot open private key file " << fname << std::endl;
+		std::cerr << "cannot open private key file " << fname << std::endl;
 		return 2;
 	}
 
@@ -71,14 +71,14 @@ int tool_keyinfo(int argc, char *argv[])
 	size_t len = static_cast<std::size_t>(s.tellg());
 	s.seekg(0, std::ios::beg);
 	if (len == (size_t)-1 || len > 64*1024*1024) {
-		std::cout << "bad key file size" << std::endl;
+		std::cerr << "bad key file size" << std::endl;
 		return 3;
 	}
 	uint8_t * buf = new uint8_t[len];
 	s.read((char*)buf, len);
 
 	if (!keys.FromBuffer(buf, len)) {
-		std::cout << "bad key file format" << std::endl;
+		std::cerr << "bad key file format" << std::endl;
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		return 3;
@@ -86,7 +86,7 @@ int tool_keyinfo(int argc, char *argv[])
 
 	auto dest = keys.GetPublic();
 	if(!dest) {
-		std::cout << "failed to extract public key" << std::endl;
+		std::cerr << "failed to extract public key" << std::endl;
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		return 3;
@@ -125,7 +125,7 @@ int tool_keyinfo(int argc, char *argv[])
 			std::cout << "Today's store hash: " << blindedKey.GetStoreHash ().ToBase64 () << std::endl;
 		}
 		else {
-			std::cout << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
+			std::cerr << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
 			OPENSSL_cleanse(buf, len);
 			delete[] buf;
 			return 1;

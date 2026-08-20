@@ -27,11 +27,10 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | CI has a fuzz-smoke job | `.github/workflows/ci.yml` contains `fuzz-smoke` job | present (not executed: not pushed) |
 | Committed seeds are not polluted by fuzz runs | `run_fuzz_smoke.sh` fuzzes a temp copy; `git status tests/fuzz/corpus` clean except untracked artifacts | observed |
 
-## 3. Security docs and dangling spec reference (docs e2d61ba)
+## 3. Security docs (docs e2d61ba)
 
 | Requirement / changed output | Check | Observed result |
 |---|---|---|
-| `.specify/feature.json` target directory exists | `specs/001-security-audit/{spec,plan,report,research,checklists/requirements}.md` present and tracked | observed (5 files restored from 4500d6c^) |
 | SECURITY.md present | file exists, links to GitHub private reporting | observed |
 | CONTRIBUTING.md present | file exists, documents dev loop + sanitizer flags | observed |
 | README platform matrix is honest | "Platform support" table: Linux ✅/✅, macOS/FreeBSD/Windows ⚠️/❌ | observed |
@@ -65,7 +64,6 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | Changed output | Check | Observed result |
 |---|---|---|
 | b33 store-hash test no longer date-dependent | assertion checks format; `make test` passes any day | PASS |
-| specs/001-security-audit restored (was deleted in 4500d6c) | `git ls-files specs` shows 5 files | observed |
 | fuzz smoke scripts resolve the repo root correctly | both scripts `cd dirname/../..`; both smoke runs exercise real files | observed |
 
 ## 7. Deep validation (extended fuzzing, 2026-08-15)
@@ -82,7 +80,6 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | Check | Observed result |
 |---|---|
 | `--help` anywhere in the arg list (`keygen --help foo`, `routerinfo -fp --help`) | exit 0, usage printed |
-| SECURITY.md relative link target `specs/001-security-audit/` resolves | present |
 | famtool `-e` bounds: 36500 accepted, 36501 rejected | 0 / 1 |
 | All three GitHub workflow files parse as YAML | OK; ci.yml jobs = test, fuzz-smoke |
 | README example (`regaddr` host-record format) matches actual output | matches |

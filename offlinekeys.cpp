@@ -29,14 +29,14 @@ int tool_offlinekeys(int argc, char *argv[])
 		std::ifstream inf;
 		inf.open(fname);
 		if (!inf.is_open()) {
-			std::cout << "cannot open keys file " << fname << std::endl;
+			std::cerr << "cannot open keys file " << fname << std::endl;
 			return 2;
 		}
 		inf.seekg(0, std::ios::end);
 		const std::size_t len = static_cast<std::size_t>(inf.tellg());
 		inf.seekg(0, std::ios::beg);
 		if (len == (size_t)-1 || len > 64*1024*1024) {
-			std::cout << "bad keys file size" << std::endl;
+			std::cerr << "bad keys file size" << std::endl;
 			return 3;
 		}
 		buff.resize(len);
@@ -44,12 +44,12 @@ int tool_offlinekeys(int argc, char *argv[])
 		const bool valid = keys.FromBuffer(buff.data(), buff.size());
 		OPENSSL_cleanse(buff.data(), buff.size());
 		if (!valid) {
-			std::cout << "bad keys file format" << std::endl;
+			std::cerr << "bad keys file format" << std::endl;
 			return 3;
 		}
 	}
 	if (keys.IsOfflineSignature ()) {
-		std::cout << "input keys file is already an offline keys file, provide the master keys file" << std::endl;
+		std::cerr << "input keys file is already an offline keys file, provide the master keys file" << std::endl;
 		return 1;
 	}
 

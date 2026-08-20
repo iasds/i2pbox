@@ -19,7 +19,7 @@ int tool_b33address(int argc, char *argv[])
 		base64.pop_back ();
 	// Real destinations are <1 KiB of base64; cap to reject pathological fuzz/pipe input early.
 	if (base64.size () > 8192) {
-		std::cout << "Invalid base64 address" << std::endl;
+		std::cerr << "Invalid base64 address" << std::endl;
 		return 1;
 	}
 	auto ident = std::make_shared<i2p::data::IdentityEx> ();
@@ -27,7 +27,7 @@ int tool_b33address(int argc, char *argv[])
 	if (ident->FromBase64 (base64) == 0 ||
 		i2p::data::Base64ToByteStream (base64, buf.data (), buf.size ()) != ident->GetFullLen ())
 	{
-		std::cout << "Invalid base64 address" << std::endl;
+		std::cerr << "Invalid base64 address" << std::endl;
 		return 1;
 	}
 	if (ident->GetSigningKeyType () == i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519 ||
@@ -39,7 +39,7 @@ int tool_b33address(int argc, char *argv[])
 	}
 	else
 	{
-		std::cout << "Invalid signature type " << SigTypeToName (ident->GetSigningKeyType ()) << std::endl;
+		std::cerr << "Invalid signature type " << SigTypeToName (ident->GetSigningKeyType ()) << std::endl;
 		return 1;
 	}
 

@@ -28,7 +28,7 @@ Do not open a public issue for an active vulnerability.
 
 ## Scope
 
-The in-repo security audit lives in
-[`specs/001-security-audit/`](specs/001-security-audit/) (spec, plan, report,
-research, requirements checklist). The CI suite runs the regression tests
-under AddressSanitizer and UndefinedBehaviorSanitizer on every push.
+i2pbox is audited on `main` with the full regression and fuzz corpus
+(`make test`, `make fuzz-smoke`). CI runs the suite under
+AddressSanitizer and UndefinedBehaviorSanitizer on every push; see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the sanitizer invocation.
