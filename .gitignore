@@ -15,6 +15,8 @@ dist/
 i2pd/libi2pd.a
 i2pd/obj/
 router.keys
+# stray autoconf_i2pd output when stdin exhausted (contains only subset of config)
+4
 specs/
 # fuzz crash artifacts (libFuzzer names files by SHA1, 40 hex chars)
 oom-*
