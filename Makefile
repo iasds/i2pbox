@@ -75,6 +75,10 @@ $(BINARY): $(OBJS) $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -MMD -MP -c -o $@ $<
 
 $(I2PD_LIB):
+	@if [ -f patches/i2pd-ecdsa-null-pkey.patch ] && ! grep -q "if (!m_PublicKey) return false" $(I2PD_PATH)/libi2pd/Signature.cpp 2>/dev/null; then \
+	  echo "Applying patches/i2pd-ecdsa-null-pkey.patch (upstream i2pd#1997 null EVP_PKEY guard)..."; \
+	  git -C $(I2PD_PATH) apply ../patches/i2pd-ecdsa-null-pkey.patch; \
+	fi
 	$(MAKE) -C $(I2PD_PATH) mk_obj_dir $(notdir $(I2PD_LIB))
 
 clean-i2pd:
@@ -89,11 +93,24 @@ clean-bin:
 clean: clean-i2pd clean-obj clean-bin
 	rm -rf tests/gen_router_info dist/
 
+clean-fuzz:
+	rm -f oom-* crash-* timeout-* leak-* tests/fuzz/corpus/*/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
+
 strip:
 	strip $(BINARY)
 
 count:
 	@wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null || true
+
+bench: $(BINARY)
+	@echo "== bench: keygen/keyinfo/i2pbase64 (100x) + vain smoke =="
+	@tmpdir=$$(mktemp -d); \
+	  echo -n "keygen 7 (100x): "; t0=$$(date +%s%N); for i in $$(seq 1 100); do ./$(BINARY) keygen $$tmpdir/k.$$i 7 >/dev/null 2>&1; done; t1=$$(date +%s%N); echo "$$(( (t1 - t0)/1000000 )) ms"; \
+	  echo -n "keyinfo -v (100x): "; t0=$$(date +%s%N); for i in $$(seq 1 100); do ./$(BINARY) keyinfo -v $$tmpdir/k.1 >/dev/null 2>&1; done; t1=$$(date +%s%N); echo "$$(( (t1 - t0)/1000000 )) ms"; \
+	  head -c 2048 /dev/urandom > $$tmpdir/rnd.bin; \
+	  echo -n "i2pbase64 roundtrip (100x): "; t0=$$(date +%s%N); for i in $$(seq 1 100); do ./$(BINARY) i2pbase64 $$tmpdir/rnd.bin | ./$(BINARY) i2pbase64 -d >/dev/null; done; t1=$$(date +%s%N); echo "$$(( (t1 - t0)/1000000 )) ms"; \
+	  echo -n "vain ej (smoke): "; timeout 5 ./$(BINARY) vain ej -t 2 -o $$tmpdir/vain.dat >/dev/null 2>&1 || true; test -s $$tmpdir/vain.dat && echo "ok" || echo "timeout/skip"; \
+	  rm -rf $$tmpdir
 
 test: $(BINARY) tests/gen_router_info
 	./tests/test_cli.sh ./$(BINARY) ./tests/gen_router_info
@@ -148,4 +165,4 @@ tests/fuzz/fuzz_routerinfo_standalone: tests/fuzz/fuzz_routerinfo.cpp tests/fuzz
 install: $(BINARY)
 	install -m 755 $(BINARY) /usr/local/bin/
 
-.PHONY: all clean clean-i2pd clean-obj clean-bin strip count install test fuzz-build fuzz-smoke interop
+.PHONY: all clean clean-i2pd clean-obj clean-bin clean-fuzz strip count bench install test fuzz-build fuzz-smoke interop

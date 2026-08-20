@@ -7,20 +7,13 @@ seconds=${1:-15}
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 fails=0
-# KNOWN-FAILURE targets: fuzzing a router.info whose (malformed) ECDSA public
-# key leaves i2pd's ECDSAVerifier::Verify with a null EVP_PKEY crashes
-# OpenSSL 3.0/3.1/3.2/3.3/3.4 in EVP_DigestVerify (SEGV). Upstream i2pd
-# issue #1997 was closed in 2023 but the null check is still missing in
-# libi2pd/Signature.cpp (verified against latest master 2026-08). Local runs
-# on OpenSSL 3.5.6 do not crash. Reported to the user; treated as SKIP here
-# so the pipeline is green while the upstream bug is tracked.
-KNOWN_FAILURES="routerinfo"
+# NOTE: routerinfo previously skipped due to ECDSAVerifier::Verify null EVP_PKEY
+# crash on OpenSSL 3.0-3.4 (upstream i2pd #1997). Fixed locally in
+# i2pd/libi2pd/Signature.cpp (early return when m_PublicKey is null); all
+# four targets now run on every CI invocation. Remove this note if upstream
+# merges the same guard.
 
 for t in base64_decode b33address keyinfo routerinfo; do
-    if [[ " $KNOWN_FAILURES " == *" $t "* ]]; then
-        echo "== $t (skipped: upstream i2pd EVP_DigestVerify null-pkey crash on OpenSSL 3.0-3.4, see run_fuzz_smoke.sh header) =="
-        continue
-    fi
     seeds="tests/fuzz/corpus/$t"
     target="tests/fuzz/fuzz_${t}"
     # fuzz in a temp copy of the corpus so newly discovered units (named by

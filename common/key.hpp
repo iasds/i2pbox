@@ -51,15 +51,32 @@ static void ToUpper(std::string & str)
 inline uint16_t NameToSigType(const std::string & keyname)
 {
 	if(keyname.size() <= 3 && !keyname.empty()) {
-		// numeric: must be an exact known signing key type value
+		// numeric: must be an exact known signing key type value (allowlist, not range check)
 		bool numeric = true;
 		for (char c : keyname)
 			if (!std::isdigit((unsigned char)c)) { numeric = false; break; }
 		if (numeric) {
 			uint16_t type = (uint16_t)std::stoi(keyname);
-			if (type <= i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519)
+			switch (type) {
+				case i2p::data::SIGNING_KEY_TYPE_DSA_SHA1: // 0
+				case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA256_P256: // 1
+				case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA384_P384: // 2
+				case i2p::data::SIGNING_KEY_TYPE_ECDSA_SHA512_P521: // 3
+				case i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519: // 7
+				case i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519ph: // 8 (ph, used in checks)
+				case i2p::data::SIGNING_KEY_TYPE_GOSTR3410_CRYPTO_PRO_A_GOSTR3411_256: // 9
+				case i2p::data::SIGNING_KEY_TYPE_GOSTR3410_TC26_A_512_GOSTR3411_512: // 10
+				case i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519: // 11
+					return type;
+				default: break;
+			}
+			// 4,5,6 are RSA types (parsed but rejected later with a dedicated warning);
+			// everything else (including out-of-range numbers) is unknown.
+			if (type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA256_2048 ||
+			    type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA384_3072 ||
+			    type == i2p::data::SIGNING_KEY_TYPE_RSA_SHA512_4096)
 				return type;
-			return -1;
+			return (uint16_t)-1;
 		}
 	}
 

@@ -1,0 +1,12 @@
+diff --git a/libi2pd/Signature.cpp b/libi2pd/Signature.cpp
+index 8c9e665..c7d7243 100644
+--- a/libi2pd/Signature.cpp
++++ b/libi2pd/Signature.cpp
+@@ -217,6 +217,7 @@ namespace crypto
+ 
+ 	bool ECDSAVerifier::Verify (const uint8_t * buf, size_t len, const uint8_t * signature) const
+ 	{
++		if (!m_PublicKey) return false;
+ 		// signature
+ 		ECDSA_SIG * sig = ECDSA_SIG_new();
+ 		ECDSA_SIG_set0 (sig, BN_bin2bn (signature, GetSignatureLen ()/2, NULL),
