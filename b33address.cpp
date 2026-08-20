@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <unistd.h>
 #include "Base.h"
 #include "Identity.h"
 #include "LeaseSet.h"
@@ -8,12 +9,19 @@
 
 int tool_b33address(int argc, char *argv[])
 {
-	// base64 input, b33 and store key output, 11->11 only
-	std::cout << "Waiting for base64 from stdin..." << std::endl;
+	// Read a single I2P base64 destination from stdin; print b33 address.
+	// The prompt goes to stderr so pipes (keyinfo -d | b33address) stay clean.
+	if (isatty(STDIN_FILENO))
+		std::cerr << "Waiting for base64 from stdin..." << std::endl;
 	std::string base64;
 	std::getline (std::cin, base64);
 	if (!base64.empty () && base64.back () == '\r')
 		base64.pop_back ();
+	// Real destinations are <1 KiB of base64; cap to reject pathological fuzz/pipe input early.
+	if (base64.size () > 8192) {
+		std::cout << "Invalid base64 address" << std::endl;
+		return 1;
+	}
 	auto ident = std::make_shared<i2p::data::IdentityEx> ();
 	std::vector<uint8_t> buf (base64.length ()); // binary data can't exceed base64
 	if (ident->FromBase64 (base64) == 0 ||

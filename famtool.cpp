@@ -13,8 +13,9 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/evp.h>
-#include <openssl/ec.h>
-#include <openssl/ssl.h>
+#include <openssl/bn.h>
+#include <openssl/obj_mac.h>
+#include <openssl/core_names.h>
 #include "common/secure_file.hpp"
 
 using namespace i2p::crypto;
@@ -46,44 +47,39 @@ static void printhelp(const std::string & name)
 
 static std::shared_ptr<Verifier> LoadCertificate (const std::string& filename)
 {
+	BIO * bio = BIO_new_file(filename.c_str(), "r");
+	if (!bio) return nullptr;
+	X509 * cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+	BIO_free(bio);
+	if (!cert) return nullptr;
 	std::shared_ptr<Verifier> verifier;
-	SSL_CTX * ctx = SSL_CTX_new (TLS_method ());
-	int ret = SSL_CTX_use_certificate_file (ctx, filename.c_str (), SSL_FILETYPE_PEM); 
-	if (ret)
+	EVP_PKEY * pkey = X509_get_pubkey(cert);
+	if (pkey)
 	{
-		SSL * ssl = SSL_new (ctx);
-		X509 * cert = SSL_get_certificate (ssl);
-		if (cert)
+		// Family certs are P-256 EC keys; extract raw x||y via modern EVP_PKEY BN params.
+		BIGNUM * x = nullptr, * y = nullptr;
+		if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_EC_PUB_X, &x) && EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_EC_PUB_Y, &y))
 		{
-			auto pkey = X509_get_pubkey (cert);
-
-			EC_KEY * ecKey = EVP_PKEY_get1_EC_KEY (pkey);
-			if (ecKey)
+			// Verify it's P-256 by checking the group name when available.
+			char groupName[64] = {0};
+			size_t glen = 0;
+			bool isP256 = true;
+			if (EVP_PKEY_get_group_name(pkey, groupName, sizeof(groupName), &glen) == 1)
+				isP256 = (std::string(groupName) == "prime256v1" || std::string(groupName) == "P-256");
+			if (isP256)
 			{
-				auto group = EC_KEY_get0_group (ecKey);
-				if (group)
-				{
-					int curve = EC_GROUP_get_curve_name (group);
-					if (curve == NID_X9_62_prime256v1)
-					{
-						uint8_t signingKey[64];
-						BIGNUM * x = BN_new(), * y = BN_new();
-						EC_POINT_get_affine_coordinates_GFp (group,
-						EC_KEY_get0_public_key (ecKey), x, y, NULL);
-						bn2buf (x, signingKey, 32);
-						bn2buf (y, signingKey + 32, 32);
-						BN_free (x); BN_free (y);
-						verifier = std::make_shared<i2p::crypto::ECDSAP256Verifier>();
-						verifier->SetPublicKey (signingKey);
-					}
-				}
-				EC_KEY_free (ecKey);
+				uint8_t signingKey[64];
+				bn2buf(x, signingKey, 32);
+				bn2buf(y, signingKey + 32, 32);
+				verifier = std::make_shared<i2p::crypto::ECDSAP256Verifier>();
+				verifier->SetPublicKey(signingKey);
 			}
-			EVP_PKEY_free (pkey);
 		}
-		SSL_free (ssl);
+		if (x) BN_free(x);
+		if (y) BN_free(y);
+		EVP_PKEY_free(pkey);
 	}
-	SSL_CTX_free (ctx);
+	X509_free(cert);
 	return verifier;
 }
 
