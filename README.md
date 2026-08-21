@@ -298,14 +298,18 @@ i2pbox verifyhost "$RECORD"
 ### autoconf_i2pd
 
 ```
-i2pbox autoconf_i2pd
+i2pbox autoconf_i2pd [-o output.conf]
 ```
 
 Interactive wizard that generates an `i2pd.conf`. Supports English and Russian. Prompts for network type, IP version, bandwidth, ports, floodfill mode, transit settings, and more.
 
 ```bash
 i2pbox autoconf_i2pd
+# scripted use: feed answers on stdin, write straight to a file
+printf 'en\n2\n' | i2pbox autoconf_i2pd -o i2pd.conf
 ```
+
+With `-o` the config is written directly to the given file (refuses to overwrite) instead of prompting for a save name at the end. If stdin runs out before all questions are answered, the tool exits non-zero and saves nothing.
 
 ## Testing
 
@@ -317,13 +321,14 @@ make fuzz-build && ./tests/fuzz/run_fuzz_smoke.sh 15   # libFuzzer smoke (clang)
 make interop           # cross-validate against go-i2p / emissary / i2p-java (needs Go/Rust/JDK)
 ```
 
-CI runs `test` (normal + ASan/UBSan with leak detection), `fuzz-smoke`, and `interop` on every push — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
+CI runs `test` (normal + ASan/UBSan with leak detection), `fuzz-smoke`, `cppcheck` (static analysis of repo sources), and `interop` on every push — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ### Shell completion
 
 ```bash
 source contrib/completion/bash/i2pbox   # bash
-# zsh: copy contrib/completion/zsh/_i2pbox to $fpath (e.g. /usr/share/zsh/site-functions/)
+# zsh: copy contrib/completion/zsh/_i2pbox to $fpath, or install it:
+# sudo make install   # puts both completions under $PREFIX/share
 ```
 
 ## See also
