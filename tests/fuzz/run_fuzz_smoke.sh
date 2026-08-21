@@ -13,7 +13,7 @@ fails=0
 # four targets now run on every CI invocation. Remove this note if upstream
 # merges the same guard.
 
-for t in base64_decode b33address keyinfo routerinfo; do
+for t in base64_decode b33address keyinfo routerinfo verifyhost; do
     seeds="tests/fuzz/corpus/$t"
     target="tests/fuzz/fuzz_${t}"
     # fuzz in a temp copy of the corpus so newly discovered units (named by

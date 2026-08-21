@@ -6,7 +6,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 fails=0
-for t in base64_decode b33address keyinfo routerinfo; do
+for t in base64_decode b33address keyinfo routerinfo verifyhost; do
     corpus="tests/fuzz/corpus/$t"
     [[ -d "$corpus" ]] || continue
     if ! ./tests/fuzz/fuzz_${t}_standalone "$corpus"/*; then

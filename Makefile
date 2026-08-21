@@ -130,10 +130,12 @@ FUZZ_CXXFLAGS := -g -O1 -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefi
 FUZZ_STANDALONE := tests/fuzz/fuzz_base64_decode_standalone \
                    tests/fuzz/fuzz_b33address_standalone \
                    tests/fuzz/fuzz_keyinfo_standalone \
-                   tests/fuzz/fuzz_routerinfo_standalone
+                   tests/fuzz/fuzz_routerinfo_standalone \
+                   tests/fuzz/fuzz_verifyhost_standalone
 
 fuzz-build: tests/fuzz/fuzz_base64_decode tests/fuzz/fuzz_b33address \
-            tests/fuzz/fuzz_keyinfo tests/fuzz/fuzz_routerinfo
+            tests/fuzz/fuzz_keyinfo tests/fuzz/fuzz_routerinfo \
+            tests/fuzz/fuzz_verifyhost
 
 fuzz-smoke: $(FUZZ_STANDALONE)
 	./tests/fuzz/run_smoke_local.sh
@@ -150,6 +152,9 @@ tests/fuzz/fuzz_keyinfo: tests/fuzz/fuzz_keyinfo.cpp $(I2PD_LIB)
 tests/fuzz/fuzz_routerinfo: tests/fuzz/fuzz_routerinfo.cpp $(I2PD_LIB)
 	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
 
+tests/fuzz/fuzz_verifyhost: tests/fuzz/fuzz_verifyhost.cpp $(I2PD_LIB)
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
+
 tests/fuzz/fuzz_base64_decode_standalone: tests/fuzz/fuzz_base64_decode.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB) i2pbase64.o
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp i2pbase64.o $(LDLIBS)
 
@@ -160,6 +165,9 @@ tests/fuzz/fuzz_keyinfo_standalone: tests/fuzz/fuzz_keyinfo.cpp tests/fuzz/stand
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
 
 tests/fuzz/fuzz_routerinfo_standalone: tests/fuzz/fuzz_routerinfo.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
+
+tests/fuzz/fuzz_verifyhost_standalone: tests/fuzz/fuzz_verifyhost.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
 
 # Installation layout (standard GNU dirs; override for packaging):
