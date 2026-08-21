@@ -23,7 +23,7 @@ using namespace i2p::data;
 
 static void usage(const std::string & name)
 {
-	std::cout << "usage: " << name << " [-h] [-v] [-g -n family -c family.crt -k family.pem [-P password] [-e days]] [-s -n family -k family.pem [-P password] -i router.keys -f router.info] [-V -c family.crt -f router.info]" << std::endl;
+	std::cout << "usage: " << name << " [-h] [-v] [-g -n family -c family.crt -k family.pem [-P password|-P -] [-e days]] [-s -n family -k family.pem [-P password|-P -] -i router.keys -f router.info] [-V -c family.crt -f router.info]" << std::endl;
 }
 
 static void printhelp(const std::string & name)
@@ -40,8 +40,10 @@ static void printhelp(const std::string & name)
 	std::cout << name << " -V -n i2pfam -c myfam.pem -f router.info" << std::endl << std::endl;
 	std::cout << "options:" << std::endl;
 	std::cout << "  -P password  encrypt/decrypt the family private key (AES-256-CBC)." << std::endl;
+	std::cout << "               -P - reads the password from stdin (first line, no prompt)," << std::endl;
+	std::cout << "               so it never shows up in the process list." << std::endl;
 	std::cout << "               Without -P the key is written unencrypted (legacy format)." << std::endl;
-	std::cout << "               Note: the password is visible in the process list." << std::endl;
+	std::cout << "               Note: with a literal -P password the password is visible in the process list." << std::endl;
 	std::cout << "  -e days      certificate validity in days (default 3650 = 10 years)." << std::endl;
 }
 
@@ -161,6 +163,20 @@ static bool ParseValidityDays (const char * s, long & days)
 	return true;
 }
 
+// Read a passphrase from stdin: the entire first line minus the trailing
+// newline. Used by -P - so the password never appears in argv/process lists.
+// Returns false when stdin yields nothing usable.
+static bool ReadPasswordFromStdin(std::string & password)
+{
+	std::string line;
+	if (!std::getline(std::cin, line))
+		return false;
+	while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+		line.pop_back();
+	password = line;
+	return true;
+}
+
 int tool_famtool(int argc, char *argv[])
 {
 	if (argc == 1) {
@@ -190,7 +206,16 @@ int tool_famtool(int argc, char *argv[])
 			help = true;
 			break;
 		case 'P':
-			password = std::string(argv[optind-1]);
+			if (std::string(argv[optind-1]) == "-") {
+				// -P - : read the passphrase from stdin so it never appears
+				// in argv / process listings.
+				if (!ReadPasswordFromStdin(password)) {
+					std::cerr << "no password available on stdin for -P -" << std::endl;
+					return 1;
+				}
+			} else {
+				password = std::string(argv[optind-1]);
+			}
 			break;
 		case 'e':
 			if (!ParseValidityDays(argv[optind-1], days)) {
