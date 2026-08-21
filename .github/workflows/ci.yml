@@ -94,3 +94,35 @@ jobs:
       - name: Cross-validate against i2p-java (heavy build)
         continue-on-error: true
         run: ./tests/interop/run_interop.sh ./i2pbox "java"
+
+  cppcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      # Repo sources only (i2pd submodule is upstream code). Scope is
+      # warning-level findings for repo files: uninitMemberVar fires only in
+      # upstream i2pd headers, syntaxError is a cppcheck parser false positive
+      # on vain.cpp's `for (int j = 8; j--;)` idiom (gcc/clang accept it).
+      # inlineSuppr lets deliberate spots be marked // cppcheck-suppress <id>.
+      - name: Run cppcheck on repo sources
+        run: |
+          cppcheck --std=c++17 --enable=warning --inline-suppr \
+            --error-exitcode=2 \
+            --suppress=missingIncludeSystem \
+            --suppress=syntaxError \
+            --suppress=uninitMemberVar \
+            -I i2pd/libi2pd -I i2pd/libi2pd_client \
+            --check-level=exhaustive \
+            *.cpp *.h *.hpp common/*.hpp common/*.h 2>&1 | tee /tmp/cppcheck.log
+      - name: Upload analysis log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-log-${{ github.run_id }}
+          path: /tmp/cppcheck.log
+          if-no-files-found: ignore
