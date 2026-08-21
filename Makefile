@@ -179,19 +179,19 @@ BINDIR := $(DESTDIR)$(PREFIX)/bin
 DATADIR := $(DESTDIR)$(PREFIX)/share
 
 install: $(BINARY)
-	install -d $(BINDIR)
-	install -m 755 $(BINARY) $(BINDIR)/i2pbox
-	install -d $(DATADIR)/bash-completion/completions
-	install -m 644 contrib/completion/bash/i2pbox $(DATADIR)/bash-completion/completions/i2pbox
-	install -d $(DATADIR)/zsh/site-functions
-	install -m 644 contrib/completion/zsh/_i2pbox $(DATADIR)/zsh/site-functions/_i2pbox
+	install -d "$(BINDIR)"
+	install -m 755 $(BINARY) "$(BINDIR)/i2pbox"
+	install -d "$(DATADIR)/bash-completion/completions"
+	install -m 644 contrib/completion/bash/i2pbox "$(DATADIR)/bash-completion/completions/i2pbox"
+	install -d "$(DATADIR)/zsh/site-functions"
+	install -m 644 contrib/completion/zsh/_i2pbox "$(DATADIR)/zsh/site-functions/_i2pbox"
 
 install-strip: install
-	strip $(BINDIR)/i2pbox
+	strip "$(BINDIR)/i2pbox"
 
 uninstall:
-	rm -f $(BINDIR)/i2pbox \
-	      $(DATADIR)/bash-completion/completions/i2pbox \
-	      $(DATADIR)/zsh/site-functions/_i2pbox
+	rm -f "$(BINDIR)/i2pbox" \
+	      "$(DATADIR)/bash-completion/completions/i2pbox" \
+	      "$(DATADIR)/zsh/site-functions/_i2pbox"
 
 .PHONY: all clean clean-i2pd clean-obj clean-bin clean-fuzz strip count bench install install-strip uninstall test fuzz-build fuzz-smoke interop
