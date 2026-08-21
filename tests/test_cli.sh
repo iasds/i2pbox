@@ -563,6 +563,23 @@ if (( $(wc -c < "$tmpdir/stdout") > 100000 )); then
     fail "autoconf_i2pd output storm on EOF"
 fi
 
+# -o writes the config directly (no save-name prompt that would swallow the
+# next stdin answer) and refuses to clobber an existing file
+ac_out="$tmpdir/ac-out.conf"
+if ! ( cd "$tmpdir" && printf 'en\n2\n' | run "$binary" autoconf_i2pd -o ac-out.conf ); then
+    fail "autoconf_i2pd -o (yggdrasil preset) exited non-zero"
+fi
+tr -d '\r' < "$ac_out" | grep -q '^meshnets.yggdrasil=true$' || fail "autoconf_i2pd -o config lacks yggdrasil flag"
+expect_failure "autoconf_i2pd -o refuses to overwrite" \
+    bash -c "cd '$tmpdir' && printf 'en\n2\n' | '$binary' autoconf_i2pd -o ac-out.conf"
+
+# truncated answers mid-questionnaire must exit non-zero and save nothing
+rm -f "$tmpdir/ac-trunc.conf"
+if ( cd "$tmpdir" && printf 'en\n1\nn\nn\nn\nn\nn\nn\n' | run "$binary" autoconf_i2pd -o ac-trunc.conf ); then
+    fail "autoconf_i2pd accepted truncated answers with a zero exit code"
+fi
+test ! -e "$tmpdir/ac-trunc.conf" || fail "autoconf_i2pd saved a config despite truncated input"
+
 ###############################################################################
 
 if (( fails > 0 )); then
