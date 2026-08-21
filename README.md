@@ -340,7 +340,9 @@ Dependencies: g++/clang (C++17), OpenSSL, Boost (program_options), zlib.
 git clone --recurse-submodules https://github.com/iasds/i2pbox.git
 cd i2pbox
 make -j$(nproc)
-sudo make install   # → /usr/local/bin/i2pbox
+sudo make install          # → /usr/local/bin/i2pbox (+ shell completions)
+# packaging: make install DESTDIR=/tmp/pkg PREFIX=/usr
+# minimal footprint: sudo make install-strip   (strips ~60MB → ~5MB)
 ```
 
 First build compiles `libi2pd.a` from the i2pd submodule (~2 minutes).

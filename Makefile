@@ -162,7 +162,28 @@ tests/fuzz/fuzz_keyinfo_standalone: tests/fuzz/fuzz_keyinfo.cpp tests/fuzz/stand
 tests/fuzz/fuzz_routerinfo_standalone: tests/fuzz/fuzz_routerinfo.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
 
-install: $(BINARY)
-	install -m 755 $(BINARY) /usr/local/bin/
+# Installation layout (standard GNU dirs; override for packaging):
+#   make install                          → /usr/local/bin/i2pbox
+#   make install PREFIX=/usr              → /usr/bin/i2pbox
+#   make install DESTDIR=/tmp/pkg PREFIX=/usr  → staging under /tmp/pkg
+PREFIX ?= /usr/local
+BINDIR := $(DESTDIR)$(PREFIX)/bin
+DATADIR := $(DESTDIR)$(PREFIX)/share
 
-.PHONY: all clean clean-i2pd clean-obj clean-bin clean-fuzz strip count bench install test fuzz-build fuzz-smoke interop
+install: $(BINARY)
+	install -d $(BINDIR)
+	install -m 755 $(BINARY) $(BINDIR)/i2pbox
+	install -d $(DATADIR)/bash-completion/completions
+	install -m 644 contrib/completion/bash/i2pbox $(DATADIR)/bash-completion/completions/i2pbox
+	install -d $(DATADIR)/zsh/site-functions
+	install -m 644 contrib/completion/zsh/_i2pbox $(DATADIR)/zsh/site-functions/_i2pbox
+
+install-strip: install
+	strip $(BINDIR)/i2pbox
+
+uninstall:
+	rm -f $(BINDIR)/i2pbox \
+	      $(DATADIR)/bash-completion/completions/i2pbox \
+	      $(DATADIR)/zsh/site-functions/_i2pbox
+
+.PHONY: all clean clean-i2pd clean-obj clean-bin clean-fuzz strip count bench install install-strip uninstall test fuzz-build fuzz-smoke interop
