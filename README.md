@@ -137,15 +137,15 @@ i2pbox famtool -V -n <name> -c <cert> -f <router.info>
 | `-k file` | Private key file (.key) |
 | `-i file` | Router keys (for signing) |
 | `-f file` | Router info file |
-| `-P password` | Encrypt (with `-g`) or decrypt (with `-s`) the private key (AES-256-CBC). Without it the legacy unencrypted PEM format is used. Note: the password is visible in the process list. |
+| `-P password` | Encrypt (with `-g`) or decrypt (with `-s`) the private key (AES-256-CBC). Without it the legacy unencrypted PEM format is used. `-P -` reads the password from stdin (first line) so it never appears in the process list. |
 | `-e days` | Certificate validity in days (with `-g`), default 3650 = 10 years |
 | `-v` | Verbose |
 
 ```bash
 i2pbox famtool -g -n myfam -c myfam.crt -k myfam.key
-i2pbox famtool -g -n myfam -c myfam.crt -k myfam.key -P secret -e 3650   # encrypted key
+printf 'secret\n' | i2pbox famtool -g -n myfam -c myfam.crt -k myfam.key -P -   # encrypted key, password via stdin
 i2pbox famtool -s -n myfam -k myfam.key -i router.keys -f router.info
-i2pbox famtool -s -n myfam -k myfam.key -P secret -i router.keys -f router.info   # encrypted key
+printf 'secret\n' | i2pbox famtool -s -n myfam -k myfam.key -P - -i router.keys -f router.info   # encrypted key
 i2pbox famtool -V -n myfam -c myfam.crt -f router.info
 ```
 

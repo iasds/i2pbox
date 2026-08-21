@@ -458,6 +458,16 @@ expect_failure "famtool refuses an encrypted key without a password" "$binary" f
 expect_failure "famtool rejects -e 0" "$binary" famtool -g -n e0fam -c "$tmpdir/e0.crt" -k "$tmpdir/e0.pem" -e 0
 expect_failure "famtool rejects a non-numeric -e" "$binary" famtool -g -n eafam -c "$tmpdir/ea.crt" -k "$tmpdir/ea.pem" -e abc
 
+# -P -: passphrase from stdin (never visible in argv/process lists)
+stdin_key="$tmpdir/stdinfam.pem"
+stdin_cert="$tmpdir/stdinfam.crt"
+expect_ok "famtool generates an encrypted key with -P -" bash -c "printf 's3cret\n' | '$binary' famtool -g -n stdinfam -c '$stdin_cert' -k '$stdin_key' -P -"
+grep -q "ENCRYPTED" "$stdin_key" || fail "famtool -P - did not encrypt the private key"
+expect_ok "famtool signs with the -P - password" bash -c "printf 's3cret\n' | '$binary' famtool -s -n stdinfam -k '$stdin_key' -P - -i '$keyfile' -f '$tmpdir/router.info'"
+expect_ok "famtool verifies the -P - family" "$binary" famtool -V -n stdinfam -c "$stdin_cert" -f "$tmpdir/router.info"
+expect_failure "famtool rejects a wrong -P - password" bash -c "printf 'wrong\n' | '$binary' famtool -s -n stdinfam -k '$stdin_key' -P - -i '$keyfile' -f '$tmpdir/router.info'"
+expect_clean_failure "famtool rejects an empty stdin with -P -" bash -c "printf '' | '$binary' famtool -g -n nofam -c '$tmpdir/no.crt' -k '$tmpdir/no.key' -P -"
+
 # overwrite protection (family keys must not be silently clobbered)
 expect_failure "famtool refuses to overwrite an existing key" "$binary" famtool -g -n testfamily -c "$tmpdir/ow.crt" -k "$family_key"
 expect_failure "famtool refuses to overwrite an existing cert" "$binary" famtool -g -n testfamily -c "$family_cert" -k "$tmpdir/ow.pem"
