@@ -5,6 +5,7 @@
 #include<fstream>
 #include<limits>
 #include<regex>
+#include "common/secure_file.hpp"
 
 #define CIN_CLEAR std::cin.clear(); std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 #define HTTP_SUPPORTS_LANGUAGE "german, italian, polish, portuguese, russian, spanish, turkish, turkmen, ukrainian, uzbek"
@@ -165,7 +166,33 @@ bool IsOnlyYggdrasil(const std::string & lang) noexcept {
 
 }
 
-int tool_autoconf_i2pd(int, char**) {
+int tool_autoconf_i2pd(int argc, char *argv[]) {
+	// -o <file>: write the generated config straight to <file> instead of
+	// prompting for a file name at the end. Scripted runs need this because
+	// the save-name prompt swallows the next queued stdin answer otherwise
+	// (which is how configs ended up in files literally called "4").
+	std::string outFileName;
+	bool outFileGiven = false;
+	for (int i = 1; i < argc; ++i) {
+		const std::string arg(argv[i]);
+		if (arg == "-h" || arg == "--help") {
+			std::cout << "Usage: i2pbox autoconf_i2pd [-o output.conf]\n"
+				<< "Interactive i2pd.conf generator; answers are read from stdin.\n"
+				<< "  -o file   write the config to file instead of prompting for a name;\n"
+				<< "            refuses to overwrite an existing file\n";
+			return 0;
+		} else if (arg == "-o") {
+			if (++i >= argc) {
+				std::cerr << "-o requires a file name" << std::endl;
+				return 1;
+			}
+			outFileName = argv[i];
+			outFileGiven = true;
+		} else {
+			std::cerr << "unknown argument: " << arg << std::endl;
+			return 1;
+		}
+	}
 	std::cout << "https://i2pd.readthedocs.io/en/latest/user-guide/configuration/\r\nhttps://github.com/PurpleI2P/i2pd/blob/openssl/contrib/i2pd.conf\r\n";
 	std::ostringstream conf;
 	auto lang = AutoConf::GetLanguage();
@@ -268,17 +295,34 @@ int tool_autoconf_i2pd(int, char**) {
 				#undef ASK_BOOL
 				#undef ASKYN_MACRO
 
+				return 0;
 			}(conf, lang);
+	}
+	// Answers ran out before the questionnaire finished: the config is
+	// incomplete. Fail instead of silently saving a half-filled config with
+	// a lying exit code.
+	if (AutoConf::g_eof) {
+		std::cerr << "input ended before the configuration was complete; nothing saved" << std::endl;
+		return 1;
 	}
 	std::cout << "Config: " << std::endl;
 	std::cout << conf.str() << std::endl;
-	//TODO: To Constexpr
-	std::cout << "Save File: (\"i2pd_.conf\"):";
-	std::string outFileName;
-	std::cin.clear();
-	std::getline(std::cin, outFileName);  
-	//TODO: to constxpr
-	if (outFileName.length() == 0) outFileName = "i2pd_.conf";
+	if (!outFileGiven) {
+		//TODO: To Constexpr
+		std::cout << "Save File: (\"i2pd_.conf\"):";
+		std::cin.clear();
+		std::getline(std::cin, outFileName);
+		if (!std::cin) {
+			std::cerr << "no output file name available; nothing saved" << std::endl;
+			return 1;
+		}
+		//TODO: to constxpr
+		if (outFileName.length() == 0) outFileName = "i2pd_.conf";
+	}
+	if (i2pbox::FileExists(outFileName)) {
+		std::cerr << "refusing to overwrite existing file " << outFileName << std::endl;
+		return 1;
+	}
 	std::ofstream confFile(outFileName);
 	confFile << conf.str();
 	confFile.close();

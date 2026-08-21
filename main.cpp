@@ -26,7 +26,7 @@ static const Command commands[] = {
     {"regaddralias",   "Register an address alias",                           "<old-file> <new-file> <address>",    tool_regaddralias,  false},
     {"x25519",         "Generate X25519 key pair for encrypted LeaseSet",     nullptr,                              tool_x25519,        false},
     {"verifyhost",     "Verify host record signature",                        "'<host record>'",                    tool_verifyhost,    false},
-    {"autoconf_i2pd",  "Interactive i2pd.conf generator",                     "(interactive; answers on stdin)",    tool_autoconf_i2pd, false},
+    {"autoconf_i2pd",  "Interactive i2pd.conf generator",                     "[-o output.conf] (answers on stdin)", tool_autoconf_i2pd, false},
     {nullptr, nullptr, nullptr, nullptr, false}
 };
 
