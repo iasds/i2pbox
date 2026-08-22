@@ -53,6 +53,12 @@ int tool_regaddr_3ld(int argc, char *argv[])
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
+			if (!s || static_cast<std::size_t>(s.gcount()) != len) {
+				std::cerr << "short read on keyfile " << argv[2] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
+				return 1;
+			}
 			if(keys.FromBuffer (buf, len)) {
 				std::stringstream out;
 				out << argv[3] << "="; // address
@@ -92,6 +98,12 @@ int tool_regaddr_3ld(int argc, char *argv[])
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
+			if (!s || static_cast<std::size_t>(s.gcount()) != len) {
+				std::cerr << "short read on keyfile " << argv[3] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
+				return 1;
+			}
 			if(keys.FromBuffer (buf, len)) {
 				auto signatureLen = keys.GetSignatureLen ();
 				uint8_t * signature = new uint8_t[signatureLen];
