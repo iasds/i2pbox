@@ -132,38 +132,75 @@ func cmdOffline(args []string) {
 	// PrivateKeys::ToBuffer layout: destination + crypto private key (256) +
 	// signing private key placeholder + offline signature block. go-i2p's
 	// ReadOfflineSignature expects the data to start AT the offline block.
-	data = data[offlineBlockOffset(data):]
-	_, _, err = offline_signature.ReadOfflineSignature(data, sigType)
+	// It only parses; VerifySignature below cross-checks the master signature.
+	block := data[offlineBlockOffset(data):]
+	offlineSig, _, err := offline_signature.ReadOfflineSignature(block, sigType)
 	if err != nil {
 		die("offline signature parse failed: %v", err)
+	}
+	// VerifySignature wants the master *signing* public key. For EdDSA/RedDSA
+	// destinations the 32-byte key sits at the tail of the 128-byte signingKey
+	// field (identity offset 256+96=352, see i2p spec and IdentityEx::FromBuffer);
+	// the preceding 96 bytes are random padding. Oversized key types (P521,
+	// GOST-512, RSA) hold truncated keys there, so restrict to EdDSA/RedDSA.
+	masterType := binary.BigEndian.Uint16(data[387:389])
+	if masterType != 7 && masterType != 11 {
+		die("verify: unsupported master type %d (only EdDSA=7, RedDSA=11)", masterType)
+	}
+	ok, err := offlineSig.VerifySignature(data[352:384])
+	if err != nil {
+		die("offline signature verify error: %v", err)
+	}
+	if !ok {
+		die("offline signature invalid")
 	}
 	fmt.Println("ok")
 }
 
+// signingPrivKeyLen maps a master signing key type to the size i2pd reserves
+// for its private key in a PrivateKeys buffer (verifier GetPrivateKeyLen,
+// normally signature length / 2; see libi2pd/Signature.h). RSA and Ed25519ph
+// masters are unsupported here on purpose (offlinekeys.cpp rejects RSA;
+// Ed25519ph has no verifier in i2pd either).
+func signingPrivKeyLen(t uint16) int {
+	switch t {
+	case 0: // DSA_SHA1 (sig 40)
+		return 20
+	case 1: // ECDSA_SHA256_P256 (sig 64)
+		return 32
+	case 2: // ECDSA_SHA384_P384 (sig 96)
+		return 48
+	case 3: // ECDSA_SHA512_P521 (sig 132)
+		return 66
+	case 7, 8: // EdDSA_SHA512_ED25519[/ph] (sig 64)
+		return 32
+	case 9: // GOSTR3410_256 (sig 64)
+		return 32
+	case 10: // GOSTR3410_512 (sig 128)
+		return 64
+	case 11: // RedDSA_SHA512_ED25519 (sig 64)
+		return 32
+	default:
+		die("unsupported master signing type %d", t)
+		return 0
+	}
+}
+
 // offlineBlockOffset returns the offset of the offline signature block within
-// an i2pd PrivateKeys buffer: destination length (387 + cert) plus the 256-byte
-// ElGamal private key plus the signing private key size for the transient type.
+// an i2pd PrivateKeys buffer: destination length (DEFAULT_IDENTITY_SIZE=387 +
+// cert length) plus the 256-byte ElGamal private key plus the master signing
+// private key size.
 func offlineBlockOffset(data []byte) int {
 	if len(data) < 391 {
 		die("keys file too short: %d bytes", len(data))
 	}
 	destLen := 387 + int(binary.BigEndian.Uint16(data[385:387]))
-	sigPrivLens := map[uint16]int{
-		0: 128,                     // DSA_SHA1
-		1: 32, 2: 32, 3: 48, 4: 66, // ECDSA P256/P384/P521
-		5: 0, 6: 0, // no longer used, kept for layout safety below
-		7:  32,         // EdDSA_SHA512_Ed25519
-		11: 64, 12: 64, // GOST R 34.10-2012 256/512
+	masterType := binary.BigEndian.Uint16(data[387:389])
+	offset := destLen + 256 + signingPrivKeyLen(masterType)
+	if offset >= len(data) {
+		die("keys file too short for declared layout: need >%d, have %d", offset, len(data))
 	}
-	privLen, ok := sigPrivLens[sigTypeOf(data)]
-	if !ok {
-		die("unsupported master signing type %d", sigTypeOf(data))
-	}
-	return destLen + 256 + privLen
-}
-
-func sigTypeOf(data []byte) uint16 {
-	return binary.BigEndian.Uint16(data[387:389])
+	return offset
 }
 
 func main() {
