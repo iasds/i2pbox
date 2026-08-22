@@ -54,8 +54,24 @@ int main(int argc, char *argv[]) {
 
     // Handle help flags at top level
     if (cmd == "-h" || cmd == "--help" || cmd == "help") {
+        // `i2pbox help <command>` / `i2pbox <command> -h`: per-command usage
+        if (argc >= 3) {
+            std::string sub(argv[2]);
+            for (const Command *c = commands; c->name; ++c) {
+                if (sub == c->name) {
+                    if (c->usage)
+                        std::cout << "Usage: i2pbox " << c->name << ' ' << c->usage << '\n';
+                    else
+                        // Commands that print their own help keep upstream behavior;
+                        // -h is accepted by every command that handles help itself.
+                        return c->func(2, const_cast<char**>(std::initializer_list<const char*>{c->name, "-h"}.begin()));
+                    return 0;
+                }
+            }
+            std::cerr << "Unknown command: " << sub << "\n";
+        }
         print_usage(std::cout);
-        return 0;
+        return argc >= 3 ? 1 : 0;
     }
 
     if (cmd == "--version" || cmd == "version" || cmd == "-v" || cmd == "-V") {
