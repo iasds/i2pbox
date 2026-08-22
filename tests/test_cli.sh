@@ -485,6 +485,8 @@ expect_match "routerinfo reports a hash" '^Router Hash: [A-Za-z0-9~=-]+=+$' "$tm
 expect_ok "routerinfo generates a published router.info" "$gen_router_info" "$keyfile" "$tmpdir/published.info" 1.2.3.4
 expect_ok "routerinfo parses the published router.info" "$binary" routerinfo "$tmpdir/published.info"
 expect_match "routerinfo shows the NTCP2 address" '^NTCP2: 1\.2\.3\.4$' "$tmpdir/stdout"
+expect_failure "routerinfo rejects flags-only invocation" "$binary" routerinfo -6
+expect_failure "routerinfo rejects firewall flag without a file" "$binary" routerinfo -fp
 
 expect_ok "routerinfo -fp emits iptables rules" "$binary" routerinfo -fp "$tmpdir/published.info"
 expect_match "routerinfo -fp emits an ACCEPT rule" ' -A OUTPUT -p tcp -d 1\.2\.3\.4 --dport 12345 -j ACCEPT' "$tmpdir/stdout"

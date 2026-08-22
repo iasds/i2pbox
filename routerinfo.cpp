@@ -71,6 +71,11 @@ int tool_routerinfo(int argc, char *argv[])
 		}
 	}
 
+	if (optind >= argc) {
+		usage(argv[0]);
+		return 1;
+	}
+
 	int ret = 0;
 	while(optind < argc) {
 		int idx = optind;
