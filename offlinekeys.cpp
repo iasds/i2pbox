@@ -41,6 +41,11 @@ int tool_offlinekeys(int argc, char *argv[])
 		}
 		buff.resize(len);
 		inf.read((char*)buff.data(), buff.size());
+		if (!inf || static_cast<std::size_t>(inf.gcount()) != buff.size()) {
+			std::cerr << "short read on keys file" << std::endl;
+			OPENSSL_cleanse(buff.data(), buff.size());
+			return 3;
+		}
 		const bool valid = keys.FromBuffer(buff.data(), buff.size());
 		OPENSSL_cleanse(buff.data(), buff.size());
 		if (!valid) {

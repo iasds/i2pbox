@@ -410,6 +410,12 @@ int tool_famtool(int argc, char *argv[])
 			}
 			uint8_t * k = new uint8_t[len];
 			fi.read((char*)k, len);
+			if (!fi || static_cast<std::size_t>(fi.gcount()) != len) {
+				std::cerr << "short read on key file " << infile << std::endl;
+				OPENSSL_cleanse(k, len);
+				delete [] k;
+				return 1;
+			}
 			if(!keys.FromBuffer(k, len)) {
 				std::cerr << "invalid key file " << infile << std::endl;
 				return 1;
