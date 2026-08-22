@@ -103,6 +103,24 @@ clean-fuzz:
 strip:
 	strip $(BINARY)
 
+# ThreadSanitizer build of the full binary, for verifying vain's threaded
+# vanity search (security audit finding H-04). Run manually:
+#   make build-tsan -j$(nproc)
+#   ./i2pbox.tsan vain ej -t 4 -o /tmp/v.dat   # expect no TSan reports
+# TSan is incompatible with high-entropy ASLR on kernel 6.x
+# ("unexpected memory mapping"); setarch -R disables ASLR for one process:
+#   setarch $(uname -m) -R ./i2pbox.tsan ...
+TSAN_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=thread
+build-tsan:
+	mkdir -p build-tsan-obj
+	for f in $(OBJS:.o=.cpp); do \
+	  $(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) $(TSAN_FLAGS) -MMD -MP -c -o build-tsan-obj/$${f%.cpp}.o $$f || exit 1; \
+	done
+	$(CXX) $(TSAN_FLAGS) -o $(BINARY).tsan build-tsan-obj/*.o $(I2PD_LIB) $(LDLIBS)
+
+clean-tsan:
+	rm -rf build-tsan-obj $(BINARY).tsan
+
 count:
 	@wc *.cpp *.h *.hpp common/*.hpp common/*.h 2>/dev/null || true
 
