@@ -89,3 +89,18 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | famtool `-P` is ignored by verify, `-e` ignored by sign | verify on signed router.info with `-P`: 0; sign with `-e`: 0 | PASS |
 | `.specify/feature.json` parses and points at the restored dir | `json.load` + assert | valid |
 | `make count` tolerates missing globs (`common/*.hpp`) | `make count` | fixed: exit 0 (was Error 1) |
+
+## 9. H-04 closure batch (2026-08-22, commits ce04239..ce17f7e)
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| Audit H-04: vain threaded search is race-free | ThreadSanitizer build (`make build-tsan`), 6 manual runs incl. 10-min hard-prefix + full CLI suite against the TSan binary | PASS: zero TSan reports |
+| vain `-m` stops cleanly on SIGINT, no mid-write truncation | suite: run 3s, `kill -INT`, wait; also under ASan+UBSan+LSan and TSan | exit 0, summary printed, no sanitizer findings |
+| vain `-m` does not spam files when a round finds nothing | suite asserts finite file set == produced keys; sequential names mm.datN.dat | PASS (was: tens of thousands of files) |
+| Every `-m` key file is valid | suite: `keyinfo` on each produced file | PASS |
+| `i2pbox help <command>` prints per-command usage | all 14 commands verified individually + suite assertions | PASS: usage line or native help; unknown subcommand exits 1 |
+| Version strings carry no `-dirty` | submodule guard committed on iasds/i2pd `openssl-patched` (bf4b156); `.gitmodules` URL points at the fork so CI can fetch the pin | `v2.0.1-25-gce17f7e (i2pd bf4b156)` |
+| Submodule pin fetchable by CI | first push failed checkout with `upload-pack: not our ref bf4b156`; after ce17f7e the pin resolves from the fork | fixed in same push cycle |
+| Full remote CI green | run 32548643833 on ce17f7e: test(normal) 2m03s, test(sanitizers) 3m36s, fuzz-smoke 5m04s, cppcheck 33s, interop(go-i2p/emissary) 3m08s | all ✓ |
+| Packaging still intact after changes | `make install DESTDIR=... PREFIX=/usr`: bin 0755 + bash/zsh completions; installed binary runs version/help | PASS |
+| All commits GPG-signed | `git log --show-signature` over the batch | Good signature (iasds) |
