@@ -74,6 +74,10 @@ $(BINARY): $(OBJS) $(I2PD_LIB)
 %.o: %.cpp | $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -MMD -MP -c -o $@ $<
 
+# The submodule normally pins a local commit (branch i2pbox-patch) that
+# already carries the upstream i2pd#1997 null-EVP_PKEY guard, so this step
+# is a no-op. It only fires for fresh checkouts pinned to an unpatched
+# upstream commit, where the patch is applied to the working tree.
 $(I2PD_LIB):
 	@if [ -f patches/i2pd-ecdsa-null-pkey.patch ] && ! grep -q "if (!m_PublicKey) return false" $(I2PD_PATH)/libi2pd/Signature.cpp 2>/dev/null; then \
 	  echo "Applying patches/i2pd-ecdsa-null-pkey.patch (upstream i2pd#1997 null EVP_PKEY guard)..."; \
