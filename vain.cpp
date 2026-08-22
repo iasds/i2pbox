@@ -5,6 +5,9 @@
 #include<string>
 #include<filesystem>
 #include<sys/stat.h>
+#include <cerrno>
+#include <cstdlib>
+#include <climits>
 //#include<boost/algorithm/string/predicate.hpp>
 //#include<format> // is not supports for me
 
@@ -260,8 +263,21 @@ int parsing(int argc, char ** args){
 				options.reg=true;
 				break;
 			case 't':
-				options.threads=atoi(optarg);
+			{
+				// strict numeric parse: atoi silently yields 0/garbage on
+				// non-numeric or out-of-range input, which later falls back to
+				// the CPU count (or overflows) instead of failing loudly
+				errno = 0;
+				char *end = nullptr;
+				const long val = std::strtol(optarg, &end, 10);
+				if(errno != 0 || end == optarg || *end != '\0'
+				   || val <= 0 || val > INT_MAX) {
+					std::cerr << "vain: invalid thread count: " << optarg << std::endl;
+					return 1;
+				}
+				options.threads=static_cast<int>(val);
 				break;
+			}
 			case 'o':
 				options.outputpath=optarg;
 				break;
