@@ -48,6 +48,13 @@ int tool_regaddralias(int argc, char *argv[])
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
+			if (!s || static_cast<std::size_t>(s.gcount()) != len)
+			{
+				std::cerr << "short read on keyfile " << argv[1] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
+				return 1;
+			}
 			if(!oldkeys.FromBuffer (buf, len))
 			{
 				std::cout << "Failed to load keyfile " << argv[1] << std::endl;
@@ -79,6 +86,13 @@ int tool_regaddralias(int argc, char *argv[])
 			s.seekg (0, std::ios::beg);
 			uint8_t * buf = new uint8_t[len];
 			s.read ((char *)buf, len);
+			if (!s || static_cast<std::size_t>(s.gcount()) != len)
+			{
+				std::cerr << "short read on keyfile " << argv[2] << std::endl;
+				OPENSSL_cleanse(buf, len);
+				delete[] buf;
+				return 1;
+			}
 			if(!newkeys.FromBuffer (buf, len))
 			{
 				std::cout << "Failed to load keyfile " << argv[2] << std::endl;
