@@ -329,6 +329,10 @@ test -s "$vain_regex_out" || fail "vain regex did not create an output file"
 expect_ok "vain regex output is a valid key" "$binary" keyinfo -v "$vain_regex_out"
 
 expect_failure "vain rejects a missing pattern" "$binary" vain
+expect_failure "vain rejects an unknown flag" bash -c "'$binary' vain ej -Z -o /dev/null"
+expect_failure "vain rejects a non-numeric thread count" bash -c "'$binary' vain ej -t abc -o /dev/null"
+expect_failure "vain rejects an out-of-range thread count" bash -c "'$binary' vain ej -t 99999999999999 -o /dev/null"
+expect_ok "vain accepts a valid explicit thread count" bash -c "'$binary' vain ej -t 2 -o '$tmpdir'/vain-t2.dat"
 
 ###############################################################################
 # regaddr
