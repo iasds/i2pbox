@@ -300,6 +300,7 @@ cp "$tmpdir/stdout" "$tmpdir/random.out"
 cmp -s "$tmpdir/random.bin" "$tmpdir/random.out" || fail "base64 roundtrip mismatch on random data"
 
 expect_failure "i2pbase64 rejects an invalid input alphabet" bash -c "printf '!!!' | '$binary' i2pbase64 -d"
+expect_failure "i2pbase64 rejects an unknown flag" bash -c "printf 'aGVsbG8=' | '$binary' i2pbase64 -z -d"
 
 ###############################################################################
 # x25519

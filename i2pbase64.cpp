@@ -127,7 +127,7 @@ int tool_i2pbase64(int argc, char *argv[])
 			decode = true;
 			break;
 		default:
-			continue;
+			return printHelp(argv[0], 1);
 		}
 	}
 
