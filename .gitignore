@@ -1,6 +1,8 @@
 *.o
 *.d
 /i2pbox
+i2pbox.tsan
+build-tsan-obj/
 i2pbox.exe
 tests/gen_router_info
 tests/fuzz/fuzz_*_standalone
