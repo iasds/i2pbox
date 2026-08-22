@@ -76,6 +76,12 @@ int tool_keyinfo(int argc, char *argv[])
 	}
 	uint8_t * buf = new uint8_t[len];
 	s.read((char*)buf, len);
+	if (!s || static_cast<std::size_t>(s.gcount()) != len) {
+		std::cerr << "short read on private key file " << fname << std::endl;
+		OPENSSL_cleanse(buf, len);
+		delete[] buf;
+		return 3;
+	}
 
 	if (!keys.FromBuffer(buf, len)) {
 		std::cerr << "bad key file format" << std::endl;
