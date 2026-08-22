@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <climits>
+#include <csignal>
 //#include<boost/algorithm/string/predicate.hpp>
 //#include<format> // is not supports for me
 
@@ -22,6 +23,16 @@ static struct{
 
 }options;
 static unsigned short attempts = 0;// it can be disabled, it's just for a statistic. For CPU this is a trash?
+
+// Set by the SIGINT handler so worker threads stop at the next hash check.
+// Ctrl+C then finishes the current round cleanly (writing any match found)
+// instead of killing the process mid-file-write.
+static std::atomic<bool> interrupted{false};
+extern "C" void vain_sigint_handler(int)
+{
+	interrupted = true;
+	found = true; // atomic<bool> from vanity.hpp; async-signal-safe store
+}
 
 static void inline CalculateW (const uint8_t block[64], uint32_t W[64])
 {
@@ -339,7 +350,8 @@ int tool_vain(int argc, char *argv[])
 	// 
      	// if ( options . outputpath . empty () ); options . outputpath . assign ( DEF_OUT_FILE ) ;
 	static std::string outPutFileName  = options.outputpath;
-	auto doSearch = [argc,argv,pattern] () {
+	std::string lastWrittenPath; // file written by the most recent round
+	auto doSearch = [&,argc,argv,pattern] () {
 	 found = false;
      	 // TODO: create libi2pd_tools
      	 // If file not exists we create a dump file. (a bug was found in issues)
@@ -409,7 +421,10 @@ int tool_vain(int argc, char *argv[])
      	//if(options.outputpath.size() == 0) options.outputpath = DEF_OUT_FILE;
 		if ( options . outputpath . empty () )
 			options.outputpath.assign(foundAddress+".dat");
-		else if(multipleSearchMode)
+		else if(multipleSearchMode && options.outputpath.compare(outPutFileName) == 0)
+			// multi-mode: first round uses <name>0.dat, later rounds arrive
+			// with the clean -o name restored by the outer loop and use the
+			// running foundKeys counter
 			options.outputpath = options.outputpath + std::to_string(foundKeys) + std::string(".dat");
 		else if(options.outputpath.size() < 4 || options.outputpath.compare(options.outputpath.size() - 4, 4, ".dat") != 0)
 			options.outputpath += ".dat";
@@ -421,7 +436,10 @@ int tool_vain(int argc, char *argv[])
 			options.outputpath = options.outputpath + std::to_string(foundKeys) + std::string(".dat");
 			foundKeys++;
 			//printf("foundKeys = %d\n", foundKeys);
-		}; 
+		};
+		// remember the file this round wrote so the next round starts from the
+		// clean -o name again; otherwise outputpath accumulates suffixes forever
+		lastWrittenPath = options.outputpath;
 	//puts("do while cycle break");
 	//if ( ! boost::algorithm::ends_with(options.outputpath, ".dat") ) 
 	//	options.outputpath = options.outputpath + ".dat";
@@ -443,16 +461,30 @@ int tool_vain(int argc, char *argv[])
      	return 0;
      }; // void doSearch lamda
 
+     // Ctrl+C stops the search cleanly: the handler flips `found` so worker
+     // threads exit, the current round completes (writing a match if one was
+     // found before the interrupt), and the loop below exits with a summary.
+     std::signal(SIGINT, vain_sigint_handler);
      do {
 		doSearch();
-		if(found) 
+		if(found && !interrupted)
 		{
-			//TODO: an another variable for file count and found keys as found keys by one runs
-			//foundKeys++;
+			foundKeys++; // count only real matches (the handler also sets found)
 		}
 		options.outputpath.assign(outPutFileName);
 		FoundNonce = 0;
-     } while(multipleSearchMode || !found);
+     } while(!interrupted && (multipleSearchMode || !found));
+
+     if(interrupted)
+     {
+         std::cout << "Interrupted. ";
+         if(foundKeys > 0) std::cout << "Found " << foundKeys << " address" << (foundKeys > 1 ? "es" : "") << " this run.";
+         std::cout << "Hashes: " << hashescounter << ", attempts: " << attempts << std::endl;
+     }
+     else
+     {
+         options.outputpath = outPutFileName;
+     }
 
           return 0;
 }
