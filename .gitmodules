@@ -1,3 +1,6 @@
 [submodule "i2pd"]
 	path = i2pd
-	url = https://github.com/PurpleI2P/i2pd.git
+	# Fork carries the i2pbox-patch branch (openssl-patched) with the
+	# upstream i2pd#1997 null-EVP_PKEY guard as a real commit; the pinned
+	# commit must be fetchable by CI. Upstream: PurpleI2P/i2pd.
+	url = https://github.com/iasds/i2pd.git
