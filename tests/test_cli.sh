@@ -167,6 +167,14 @@ done
 expect_ok "vain --help exits cleanly" "$binary" vain --help
 expect_ok "x25519 --help exits cleanly" "$binary" x25519 --help
 expect_ok "famtool -h exits cleanly" "$binary" famtool -h
+# `help <command>` routes to the same per-command usage
+for c in keygen keyinfo routerinfo; do
+    expect_ok "help $c shows usage" "$binary" help "$c"
+    expect_match "help $c output matches --help output" "^Usage: i2pbox ${c} " "$tmpdir/stdout"
+done
+expect_ok "help vain shows vain usage" "$binary" help vain
+expect_match "help vain output is vain-specific" '^vain pattern \[options\]' "$tmpdir/stdout"
+expect_failure "help with unknown command exits non-zero" "$binary" help nosuchcommand
 
 ###############################################################################
 # keygen
@@ -333,6 +341,28 @@ expect_failure "vain rejects an unknown flag" bash -c "'$binary' vain ej -Z -o /
 expect_failure "vain rejects a non-numeric thread count" bash -c "'$binary' vain ej -t abc -o /dev/null"
 expect_failure "vain rejects an out-of-range thread count" bash -c "'$binary' vain ej -t 99999999999999 -o /dev/null"
 expect_ok "vain accepts a valid explicit thread count" bash -c "'$binary' vain ej -t 2 -o '$tmpdir'/vain-t2.dat"
+
+# multi-mode: run briefly, stop with SIGINT, expect clean exit and valid keys.
+# Guards two regressions: SIGINT killing the process mid-write, and the
+# outer loop re-entering search with a stale suffixed output path (which
+# used to spam numbered files without bound).
+vain_m_dir="$tmpdir/vain-m"
+mkdir -p "$vain_m_dir"
+"$binary" vain ej -t 2 -m -o "$vain_m_dir/mm.dat" >"$tmpdir/stdout" 2>"$tmpdir/stderr" &
+vain_m_pid=$!
+sleep 3
+kill -INT $vain_m_pid 2>/dev/null
+if ! wait $vain_m_pid; then
+    fail "vain -m did not exit cleanly after SIGINT"
+fi
+vain_m_count=$(find "$vain_m_dir" -name 'mm.dat*.dat' | wc -l)
+(( vain_m_count >= 1 )) || fail "vain -m produced no key files (found $vain_m_count)"
+# the file set must be finite and sequentially named, not unbounded spam
+vain_m_files=$(find "$vain_m_dir" -type f | wc -l)
+(( vain_m_files == vain_m_count )) || fail "vain -m left unexpected files ($vain_m_files files vs $vain_m_count mm*.dat)"
+for f in "$vain_m_dir"/mm.dat*.dat; do
+    expect_ok "vain -m output $(basename "$f") is a valid key" "$binary" keyinfo "$f"
+done
 
 ###############################################################################
 # regaddr
