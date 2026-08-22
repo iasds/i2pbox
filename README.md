@@ -318,7 +318,12 @@ make test              # regression suite (tests/test_cli.sh): 14 subcommands, c
 make bench             # perf baseline: 100x keygen/keyinfo/i2pbase64 + vain smoke (~2s)
 make fuzz-smoke        # local corpus smoke (no clang required)
 make fuzz-build && ./tests/fuzz/run_fuzz_smoke.sh 15   # libFuzzer smoke (clang)
+make build-tsan        # full binary with ThreadSanitizer (i2pbox.tsan) for race auditing
 make interop           # cross-validate against go-i2p / emissary / i2p-java (needs Go/Rust/JDK)
+
+# verify the vain threaded search under TSan (setarch -R works around
+# TSan's high-entropy-ASLR incompatibility):
+./tests/test_cli.sh ./i2pbox.tsan
 ```
 
 CI runs `test` (normal + ASan/UBSan with leak detection), `fuzz-smoke`, `cppcheck` (static analysis of repo sources), and `interop` on every push — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
