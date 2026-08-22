@@ -50,6 +50,9 @@ run_go() {
     "$bin" base64-decode SGVsbG8gd29ybGQ= 48656c6c6f20776f726c64 || fail "base64 decode"
     "$bin" destination "$dest" "$b32" "$hash" || fail "destination/b32/hash"
     "$bin" router-info "$tmpdir/router.info" || fail "router.info parse+verify"
+    "$binary" keygen "$tmpdir/offmaster.keys" 7 >/dev/null
+    "$binary" offlinekeys "$tmpdir/offline.keys" "$tmpdir/offmaster.keys" 7 30 >/dev/null
+    "$bin" offline "$tmpdir/offline.keys" 7 || fail "offline signature parse"
     echo "  go-i2p: ok"
 }
 
