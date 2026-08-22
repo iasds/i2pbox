@@ -32,6 +32,12 @@ fi
 # $tmpdir (the tool writes config files into the CWD), so relative
 # invocations such as ./i2pbox would break from there.
 binary="$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")"
+# TSan builds crash under high-entropy ASLR ("unexpected memory mapping");
+# wrap in setarch -R when the harness runs a *-tsan binary (opt-in, local).
+case "$(basename "$binary")" in
+    *tsan) wrapper="setarch $(uname -m) -R" ;;
+    *)     wrapper="" ;;
+esac
 gen_router_info="$(cd "$(dirname "$gen_router_info")" && pwd)/$(basename "$gen_router_info")"
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/i2pbox-tests.XXXXXX")
@@ -54,7 +60,12 @@ fail() {
 
 # run CMD... -> captures stdout/stderr, returns command exit code
 run() {
-    timeout "$timeout_s" "$@" >"$tmpdir/stdout" 2>"$tmpdir/stderr"
+    if [[ -n "${wrapper:-}" ]]; then
+        # shellcheck disable=SC2086  # wrapper intentionally word-split
+        timeout "$timeout_s" $wrapper "$@" >"$tmpdir/stdout" 2>"$tmpdir/stderr"
+    else
+        timeout "$timeout_s" "$@" >"$tmpdir/stdout" 2>"$tmpdir/stderr"
+    fi
 }
 
 # NOTE: run "$@" || status=$? is used (not `if ! run; then status=$?`) because
@@ -348,7 +359,8 @@ expect_ok "vain accepts a valid explicit thread count" bash -c "'$binary' vain e
 # used to spam numbered files without bound).
 vain_m_dir="$tmpdir/vain-m"
 mkdir -p "$vain_m_dir"
-"$binary" vain ej -t 2 -m -o "$vain_m_dir/mm.dat" >"$tmpdir/stdout" 2>"$tmpdir/stderr" &
+# shellcheck disable=SC2086  # wrapper intentionally word-split
+$wrapper "$binary" vain ej -t 2 -m -o "$vain_m_dir/mm.dat" >"$tmpdir/stdout" 2>"$tmpdir/stderr" &
 vain_m_pid=$!
 sleep 3
 kill -INT $vain_m_pid 2>/dev/null
@@ -580,8 +592,10 @@ expect_ok "keygen accepts the ECDSA-P521 full name" "$binary" keygen "$tmpdir/s2
 expect_match "keygen ECDSA-P521 resolves" 'ECDSA-P521 \(3\)' "$tmpdir/stdout"
 
 # i2pbase64 input validation
-printf 'ABCa\r\nBCDb\r\n' | "$binary" i2pbase64 -d >"$tmpdir/crlf.raw"
-if ! printf 'ABCaBCDb' | "$binary" i2pbase64 -d | cmp -s - "$tmpdir/crlf.raw"; then
+# shellcheck disable=SC2086  # wrapper intentionally word-split
+printf 'ABCa\r\nBCDb\r\n' | $wrapper "$binary" i2pbase64 -d >"$tmpdir/crlf.raw"
+# shellcheck disable=SC2086
+if ! printf 'ABCaBCDb' | $wrapper "$binary" i2pbase64 -d | cmp -s - "$tmpdir/crlf.raw"; then
     fail "i2pbase64 CRLF multi-line decode differs from single-line"
 fi
 expect_failure "i2pbase64 rejects '+' in the alphabet" bash -c "printf 'ABCaBCDbABCaBCDb++' | '$binary' i2pbase64 -d"
@@ -593,9 +607,9 @@ expect_failure "b33address rejects trailing garbage" bash -c "printf '%sXXXX' '$
 expect_failure "x25519 rejects unknown arguments" "$binary" x25519 --bogus
 
 # vain input validation (was: infinite loop / SIGABRT)
-expect_failure "vain rejects a non-b32 pattern" timeout 20 "$binary" vain 9x -t 1 -o "$tmpdir/v9.dat"
-expect_failure "vain rejects an invalid regex" timeout 20 "$binary" vain '(' -r -t 1 -o "$tmpdir/vr.dat"
-expect_failure "vain rejects a removed -s option" timeout 20 "$binary" vain ab -s 1 -t 1 -o "$tmpdir/vs.dat"
+expect_failure "vain rejects a non-b32 pattern" $wrapper timeout 20 "$binary" vain 9x -t 1 -o "$tmpdir/v9.dat"
+expect_failure "vain rejects an invalid regex" $wrapper timeout 20 "$binary" vain '(' -r -t 1 -o "$tmpdir/vr.dat"
+expect_failure "vain rejects a removed -s option" $wrapper timeout 20 "$binary" vain ab -s 1 -t 1 -o "$tmpdir/vs.dat"
 
 # famtool family-name case insensitivity (sign MiXeDFam, verify mixedfam)
 expect_ok "famtool generates the mixed-case family" "$binary" famtool -g -n MiXeDFam -c "$tmpdir/mc.crt" -k "$tmpdir/mc.pem"
