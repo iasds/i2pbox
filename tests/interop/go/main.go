@@ -14,10 +14,11 @@ package main
 
 import (
 	"encoding/base32"
+	"encoding/binary"
 	"encoding/hex"
-	"strings"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-i2p/common/base64"
 	"github.com/go-i2p/common/destination"
@@ -128,11 +129,41 @@ func cmdOffline(args []string) {
 	if _, err := fmt.Sscanf(args[1], "%d", &sigType); err != nil {
 		die("bad sigtype: %v", err)
 	}
+	// PrivateKeys::ToBuffer layout: destination + crypto private key (256) +
+	// signing private key placeholder + offline signature block. go-i2p's
+	// ReadOfflineSignature expects the data to start AT the offline block.
+	data = data[offlineBlockOffset(data):]
 	_, _, err = offline_signature.ReadOfflineSignature(data, sigType)
 	if err != nil {
 		die("offline signature parse failed: %v", err)
 	}
 	fmt.Println("ok")
+}
+
+// offlineBlockOffset returns the offset of the offline signature block within
+// an i2pd PrivateKeys buffer: destination length (387 + cert) plus the 256-byte
+// ElGamal private key plus the signing private key size for the transient type.
+func offlineBlockOffset(data []byte) int {
+	if len(data) < 391 {
+		die("keys file too short: %d bytes", len(data))
+	}
+	destLen := 387 + int(binary.BigEndian.Uint16(data[385:387]))
+	sigPrivLens := map[uint16]int{
+		0: 128,                     // DSA_SHA1
+		1: 32, 2: 32, 3: 48, 4: 66, // ECDSA P256/P384/P521
+		5: 0, 6: 0, // no longer used, kept for layout safety below
+		7:  32,         // EdDSA_SHA512_Ed25519
+		11: 64, 12: 64, // GOST R 34.10-2012 256/512
+	}
+	privLen, ok := sigPrivLens[sigTypeOf(data)]
+	if !ok {
+		die("unsupported master signing type %d", sigTypeOf(data))
+	}
+	return destLen + 256 + privLen
+}
+
+func sigTypeOf(data []byte) uint16 {
+	return binary.BigEndian.Uint16(data[387:389])
 }
 
 func main() {
