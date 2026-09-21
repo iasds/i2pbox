@@ -104,3 +104,26 @@ are the GitHub Actions runs (the workflows were edited but not pushed).
 | Full remote CI green | run 32548643833 on ce17f7e: test(normal) 2m03s, test(sanitizers) 3m36s, fuzz-smoke 5m04s, cppcheck 33s, interop(go-i2p/emissary) 3m08s | all ✓ |
 | Packaging still intact after changes | `make install DESTDIR=... PREFIX=/usr`: bin 0755 + bash/zsh completions; installed binary runs version/help | PASS |
 | All commits GPG-signed | `git log --show-signature` over the batch | Good signature (iasds) |
+
+## 10. b33offlinekeys batch (2026-09-21, worktree on top of 4d16e6e)
+
+Port of upstream PurpleI2P/i2pd-tools `b33offlinekeys` (PR #124): per-day keys
+for an encrypted LeaseSet, appended after the offline-signed online keys;
+`keyinfo -b` reports the batch span via the new `common/b33_offline.hpp`
+reader. All checks ran locally on this machine (x86_64, g++ 14.2.0,
+clang 19, OpenSSL 3.5.7). Interop was not re-run locally: it exercises only
+`keyinfo -d`/bare/`-v` and `offlinekeys`, whose outputs are byte-identical
+(no batch present → no new line); CI covers it on push.
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| 15th subcommand builds with zero new warnings | `make clean && make -j2` | PASS; only pre-existing autoconf_i2pd.cpp Cyrillic-switch warning |
+| Full regression incl. the new b33offlinekeys group | `make test` | PASS |
+| ASan/UBSan/leak-clean under the CI sanitizer flags | sanitizer `make -j6` + `make test` with `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1` | PASS |
+| Batch-tail parser has a fuzz target mirroring the `keyinfo -b` path | `tests/fuzz/fuzz_b33offline.cpp` + committed seed `tests/fuzz/corpus/b33offline/ed25519-batch.keys`, wired into `fuzz-build`, both smoke scripts, `.gitignore` | present |
+| All libFuzzer targets build (clang++-19, fuzzer+ASan+UBSan) | `make fuzz-build FUZZ_CC=clang++-19` | PASS: 6/6 binaries, 0 warnings |
+| libFuzzer smoke incl. the new target | `tests/fuzz/run_fuzz_smoke.sh 15` | PASS: all 6 targets ok, 0 crashes |
+| gcc standalone smoke, normal and sanitizer builds | `make fuzz-smoke` (plain; then ASan/UBSan `CXXFLAGS`/`LDFLAGS`) | PASS both |
+| Perf baseline | `make bench` | keygen 1080 ms / keyinfo -v 732 ms / base64-rt 624 ms per 100x, vain smoke ok |
+| `.specify/feature.json` dangling pointer | specs/ unpublished + gitignored since 8720c4c, absent even locally | removed (repo no longer tracks `.specify/`) |
+| `.gitignore` fuzz binaries | `tests/fuzz/fuzz_verifyhost` was never ignored (pre-existing gap) | added alongside `fuzz_b33offline` |
