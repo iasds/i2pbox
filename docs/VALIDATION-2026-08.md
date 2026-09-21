@@ -127,3 +127,58 @@ clang 19, OpenSSL 3.5.7). Interop was not re-run locally: it exercises only
 | Perf baseline | `make bench` | keygen 1080 ms / keyinfo -v 732 ms / base64-rt 624 ms per 100x, vain smoke ok |
 | `.specify/feature.json` dangling pointer | specs/ unpublished + gitignored since 8720c4c, absent even locally | removed (repo no longer tracks `.specify/`) |
 | `.gitignore` fuzz binaries | `tests/fuzz/fuzz_verifyhost` was never ignored (pre-existing gap) | added alongside `fuzz_b33offline` |
+
+## 11. b33offlinekeys day-cap fix and fuzz-seed lifetime (2026-09-21, follow-up review)
+
+An independent review of section 10 found that the port kept upstream's
+65,535-day cap, which exceeds the 32-bit expiry format: past
+`(UINT32_MAX - now) / 86400` days the per-day expiries wrap into the past and
+the written file is rejected by every reader (its inner offline signature
+reads as expired), while the command still reported success. The committed
+fuzz seed had the mirror-image problem: a 2-day batch whose offline signature
+expired on 2026-09-22, after which `FromBuffer` returns 0 and
+`fuzz_b33offline` returns before reaching the batch parser, silently losing
+that coverage. All checks ran locally on this machine (x86_64, g++ 14.2.0,
+clang 19, OpenSSL 3.5.7).
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| Days past the uint32 expiry horizon are rejected up front | `i2pbox b33offlinekeys out keys 65535` → exit 6, `days must be an integer between 1 and 28992`; `70000`, `28994`, `28993`, cap+1 also exit 6 | PASS |
+| Out-of-range counts cannot slip through the `unsigned` → `int` conversion | `4294967295`, `2147483648`, `2147483647`, `4000000`, `-1`, `0`, `not-a-number` all exit 6; `2` and the cap `28992` exit 0 | PASS |
+| The defect is reproducible on the pre-fix code | pre-fix `b33offlinekeys.o` relinked into a scratch binary: `65535` exits 0 and writes 8 782 538 bytes, `keyinfo -b` on it prints no span (the tail no longer parses), `keyinfo -v` reports the wrapped inner expiry `18/01/2070` instead of 2106, and the entries from day 28993 on carry expiries in 1970; `28994` also exits 0 but writes a file `keyinfo -v` rejects with exit 3 `bad key file format` | reproduced |
+| The new tests fail against the pre-fix binary | `tests/test_cli.sh <pre-fix binary>` | FAIL `b33offlinekeys rejects the old 16-bit cap succeeded` |
+| The cap tracks the epoch rather than a constant | suite cross-checks the reported cap against `(2**32 - 1 - time.time()) // 86400`, tolerance 1 day | PASS |
+| The accepted maximum still yields a valid batch | `b33offlinekeys out keys 28992` + independent verifier: every per-day blinded RedDSA signature verifies against that day's blinded public key, transient keypairs consistent, last day 21060205 == inner offline-signature expiry | PASS (17.7 s, 3.9 MB) |
+| A batch generated at the horizon is loadable | `keyinfo -b` on the 28992-day file reports `28992 days, 20260921 to 21060205`; `keyinfo -v` exits 0 | PASS |
+| Committed fuzz seed outlives the review | regenerated with `days=2000` (268 848 bytes, valid to 2032-03-12); verifier: all 2000 signatures verify | PASS |
+| Seed expiry can no longer go unnoticed | `make test` asserts the seed still loads, still carries a batch span, and keeps at least 90 days of validity, with a regeneration hint | PASS |
+| `keyinfo -p` does not silently drop a batch tail | documented on the `keyinfo` option row and in the b33offlinekeys section (the pinned libi2pd cannot re-emit the tail) | observed |
+| Stale command counts | `README.md` said 14 subcommands/binaries in three places; upstream now builds 15 (b33offlinekeys merged) | fixed |
+| No new warnings | `make -j2` after the fix | PASS; only the pre-existing autoconf_i2pd warnings |
+| Full regression after the fix | `make test` | PASS (11.0 s) |
+
+## 12. Cross-validation against upstream i2pd-tools (2026-09-21)
+
+The batch format is shared with upstream, so section 10/11 were re-checked by
+generating the same destinations' batches with both implementations and
+cross-reading them, including the router-side consumer. Upstream side:
+PurpleI2P/i2pd-tools master `39f45c6` (2026-09-16, the PR #124 merge) built
+against `freeacetone/i2pd` branch `b33-offline-keys` `fad677b` (2026-09-17),
+the only libi2pd that carries the `B33OfflineKeys` support the tools expect.
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| Upstream master builds with its own pinned submodule | clean clone, pinned i2pd `80080fd` (2025-10-15), `make b33offlinekeys keyinfo` | FAILS: 9 compile errors (`B33_OFFLINE_KEYS_VERSION`/`_HEADER_LENGTH`, `SECONDS_PER_DAY`, `OFFLINE_SIGNATURE_HEADER_LENGTH`, `GetB33OfflineKeys` all missing) — upstream needs a submodule bump; ours defines the constants locally for the same reason |
+| Same keys and day counts produce interoperable files | 3 cases (Ed25519 5 d, RedDSA 1 d, Ed25519 365 d via the default path), both tools' output compared field by field | PASS 45/45 checks: identical file sizes and byte-identical deterministic structure (header, per-day expires/date/sig type, entry length), identical stdout |
+| Each side can read the other's file | `i2pbox keyinfo -b` on the upstream file, upstream `keyinfo -b` on ours, bare `keyinfo` b32 both ways | PASS: same span and same b32 from both readers |
+| Blinded derivation agrees across libi2pd versions | every file verified by both the pinned libi2pd (2.61.0, `Blinding.cpp` Ed25519/RedDSA) and the reference branch: per-day blinded signature vs the day's blinded public key, transient keypair consistency | PASS: both files, both derivations, all days |
+| Router-side load and re-serialize | reference `PrivateKeys::FromBuffer` → `GetB33OfflineKeys` → `ToBuffer` on both tools' files | PASS: batch preserved, round trip byte-identical |
+| The batch is actually usable per day | reference `BlindedPrivateKey::Create` + `CreateSigner(day)` for every day, verified the way a LeaseSet client does (transient-key signature plus the carried offline blob authorized by that day's blinded key) | PASS: 5/5, 1/1 and 365/365 days; days outside the batch return a null signer |
+| Malformed batch handled safely | truncating the last day, inflating the day count to 65535, randomizing the tail, flipping the ident hash | i2pbox: no span, exit 0, ASan-clean, and the consumer refuses to sign. Upstream `keyinfo`: `heap-buffer-overflow` under ASan (READ of size 4 in `buf32toh`) and a bogus span `20260921 to 19691231` on the truncated file |
+| That bounds check is test-covered | bounds-check-free copy of `common/b33_offline.hpp` linked into `keyinfo`, run under ASan | suite FAILS at `keyinfo -b ignores a truncated batch` with the heap-buffer-overflow; the real build passes |
+| Adversarial batches are a regression test | new `tests/test_cli.sh` assertions (truncated, inflated) + existing `tests/fuzz/fuzz_b33offline.cpp` | PASS, plain and ASan/UBSan |
+| Consumer never signs with a truncated or inflated batch | reference consumer on the four malformed files | day signers all null, no crash, no wrong signature |
+
+Reproduction: build the reference libi2pd (`git -C i2pd fetch --depth 1 <fork> b33-offline-keys`),
+`make -C i2pd libi2pd.a`, then `make b33offlinekeys keyinfo` in i2pd-tools; a shared
+master key file is enough to compare both generators.

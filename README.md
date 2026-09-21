@@ -2,11 +2,11 @@
 
 **All [i2pd-tools](https://github.com/PurpleI2P/i2pd-tools) in a single binary.**
 
-The original i2pd-tools builds **14 separate binaries**. i2pbox merges them into one:
+The original i2pd-tools builds **15 separate binaries**. i2pbox merges them into one:
 
 ```
-Before: 14 binaries, 14 compilations
-After:  1 binary, 1 make, 14 subcommands
+Before: 15 binaries, 15 compilations
+After:  1 binary, 1 make, 15 subcommands
 ```
 
 ## I2P ecosystem positioning
@@ -90,7 +90,7 @@ i2pbox keyinfo [-v] [-d] [-p] [-b] <keyfile>
 | *(none)* | `.b32.i2p` address |
 | `-v` | Full details: destination, hash, b32, signature type, encryption type, offline status |
 | `-d` | Base64 destination (public key) |
-| `-p` | Base64 private key |
+| `-p` | Base64 private key (online keys only, a b33 offline-keys batch is not included) |
 | `-b` | Blinded b33 address (for encrypted LeaseSet) + b33 offline-keys batch span, if present |
 
 ```bash
@@ -255,6 +255,8 @@ i2pbox b33offlinekeys <output> <master-keyfile> [days]
 
 Per-day keys that let a router publish an encrypted LeaseSet (a b33 address) without holding the destination's signing key. The output bundles an offline-signed inner key (valid exactly as long as the batch) with the per-day blinded transients; the destination must be Ed25519 or RedDSA. `keyinfo -b` on the output file reports the batch span.
 
+The day count is capped by the 32-bit expiry format, not just by the 16-bit key-count field: `days` must be between 1 and `(UINT32_MAX - now) / 86400` (28,992 on 2026-09-21, one less each day). A larger count would wrap the per-day expiries into the past and write a file no reader loads, so it is rejected up front. Keep the destination keys: the file cannot be rebuilt from `keyinfo -p` output, which covers the online keys only.
+
 ```bash
 i2pbox b33offlinekeys b33batch.dat router.keys 365
 # → Address abcdef....b32.i2p, 365 days
@@ -333,7 +335,7 @@ With `-o` the config is written directly to the given file (refuses to overwrite
 ## Testing
 
 ```bash
-make test              # regression suite (tests/test_cli.sh): 14 subcommands, cross-tool chains, golden vectors
+make test              # regression suite (tests/test_cli.sh): 15 subcommands, cross-tool chains, golden vectors
 make bench             # perf baseline: 100x keygen/keyinfo/i2pbase64 + vain smoke (~2s)
 make fuzz-smoke        # local corpus smoke (no clang required)
 make fuzz-build && ./tests/fuzz/run_fuzz_smoke.sh 15   # libFuzzer smoke (clang)
@@ -358,6 +360,7 @@ source contrib/completion/bash/i2pbox   # bash
 ## See also
 
 - [SECURITY.md](SECURITY.md) — vulnerability reporting
+- [CHANGELOG.md](CHANGELOG.md) — release notes
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev loop, style, sanitizer flags, test expectations
 - [docs/INTEROP.md](docs/INTEROP.md) — per-implementation compatibility matrix
 
@@ -404,7 +407,7 @@ are best-effort; please report breakage.
 
 ### Behavioral differences?
 
-Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals, with documented deviations: keygen's RSA fallback (see above), and `b33offlinekeys` hardening — errors go to stderr with distinct exit codes (upstream prints to stdout, aborts on non-numeric days, and can report success after a failed write), output files are 0600, days are strictly validated, non-blindable destinations are rejected up front, and key material is cleansed on failure paths. The batch layout itself is byte-identical to upstream. The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
+Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals, with documented deviations: keygen's RSA fallback (see above), and `b33offlinekeys` hardening — errors go to stderr with distinct exit codes (upstream prints to stdout, aborts on non-numeric days, and can report success after a failed write), output files are 0600, days are strictly validated against the 32-bit expiry horizon (upstream accepts up to 65,535 and silently writes a batch whose expiries wrapped into the past), non-blindable destinations are rejected up front, and key material is cleansed on failure paths. The batch layout itself is byte-identical to upstream. The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
 
 ### Alias original names?
 

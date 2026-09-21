@@ -31,6 +31,7 @@ implementation but not exercised here; `—` not applicable / not supported.
 | `regaddr` / `verifyhost` | ✅ | ⬜ | ⬜ | ⬜ |
 | `regaddr_3ld` / `regaddralias` | ✅ | ⬜ | ⬜ | ⬜ |
 | `offlinekeys` | ✅ | ⬜ | ⬜ (format differs) | ⬜ |
+| `b33offlinekeys` (encrypted LeaseSet) | ⬜ reader only on the `b33-offline-keys` branch, not in i2pd master | ⬜ | ⬜ | ⬜ |
 | `famtool` (X.509 family certs) | ✅ | ⬜ | ⬜ | ⬜ |
 | `x25519` (encrypted LeaseSet) | ✅ | ⬜ | ⬜ | ⬜ |
 | `vain` | ✅ | ⬜ | ⬜ | ⬜ |
@@ -69,7 +70,14 @@ Practical import path from i2pbox:
 5. The **network data** derived from the key (destination, b32, hash) is
    byte-identical across implementations — verified by `run_interop.sh`.
 
-## Known capability limits (as of 2026-08)
+## Known capability limits (as of 2026-09)
+
+- **b33 offline keys (encrypted LeaseSet)**: the tools side is merged
+  upstream (i2pd-tools PR #124) but the libi2pd reader is only on the
+  `b33-offline-keys` branch, so released i2pd cannot load a batch yet. The
+  batch layout is verified against that branch: identical structure, both
+  readers agree, and every day of the batch signs and verifies
+  (`docs/VALIDATION-2026-08.md`, section 12).
 
 - **emissary** only parses **X25519-encrypted** identities
   (`InvalidPublicKey(0)` on ElGamal). i2pbox/i2pd generate ElGamal by
