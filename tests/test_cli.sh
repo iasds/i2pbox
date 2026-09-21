@@ -155,9 +155,9 @@ expect_match "--version identifies i2pbox and i2pd" 'i2pbox.*i2pd' "$tmpdir/stdo
 expect_failure "no arguments exits non-zero" "$binary"
 expect_ok "help exits cleanly" "$binary" help
 # each command must be listed individually (a single alternation regex would
-# pass if only one of the 14 commands were present)
+# pass if only one of the 15 commands were present)
 cmds=(vain keygen keyinfo famtool routerinfo regaddr regaddr_3ld i2pbase64
-      offlinekeys b33address regaddralias x25519 verifyhost autoconf_i2pd)
+      offlinekeys b33offlinekeys b33address regaddralias x25519 verifyhost autoconf_i2pd)
 for c in "${cmds[@]}"; do
     grep -qE "^  ${c}( |$)" "$tmpdir/stdout" \
         || fail "help does not list $c"
@@ -170,7 +170,7 @@ done
 group "help"
 # commands handled by the main dispatch layer
 for c in keygen keyinfo routerinfo regaddr regaddr_3ld i2pbase64 offlinekeys \
-         b33address regaddralias verifyhost autoconf_i2pd; do
+         b33offlinekeys b33address regaddralias verifyhost autoconf_i2pd; do
     expect_ok "$c --help exits cleanly" "$binary" "$c" --help
     expect_match "$c --help shows usage" "^Usage: i2pbox ${c} " "$tmpdir/stdout"
 done
@@ -282,6 +282,52 @@ expect_match "keyinfo reports transient signature type" '^Transient Signature Ty
 
 expect_failure "offlinekeys rejects invalid days" "$binary" offlinekeys "$tmpdir/offline.dat" "$keyfile" 7 not-a-number
 expect_failure "offlinekeys rejects a bad master key" "$binary" offlinekeys "$tmpdir/offline.dat" "$tmpdir/garbage.dat" 7 30
+
+###############################################################################
+# b33offlinekeys
+###############################################################################
+
+group "b33offlinekeys"
+b33batch="$tmpdir/b33batch.dat"
+expect_ok "b33offlinekeys generates a batch" "$binary" b33offlinekeys "$b33batch" "$keyfile" 2
+test -s "$b33batch" || fail "b33offlinekeys did not create a key file"
+test "$(stat -c '%a' "$b33batch")" = "600" || fail "b33offlinekeys did not create a 0600 key file"
+expect_match "b33offlinekeys reports the b33 address" '^Address [a-z2-7]+\.b32\.i2p, 2 days$' "$tmpdir/stdout"
+expect_match "b33offlinekeys prints the tunnel hint" '^  i2cp\.leaseSetType = 5$' "$tmpdir/stdout"
+
+# keyinfo -b on the batch file must show the same b33 address as the tool
+expect_ok "keyinfo -b on the batch file" "$binary" keyinfo -b "$b33batch"
+expect_match "keyinfo -b reports the batch span" '^b33 offline keys: 2 days, [0-9]{8} to [0-9]{8}$' "$tmpdir/stdout"
+batch_b33=$(grep '^b33 address: ' "$tmpdir/stdout")
+expect_ok "keyinfo -d on the master key" "$binary" keyinfo -d "$keyfile"
+# NOTE: stage through a variable: in `printf | run` the run-side stdout
+# redirect truncates $tmpdir/stdout before $(cat ...) may expand.
+master_dest=$(cat "$tmpdir/stdout")
+if ! printf '%s' "$master_dest" | run "$binary" b33address; then
+    fail "b33address on the master key failed"
+    tool_b33=
+else
+    tool_b33=$(grep '^b33 address: ' "$tmpdir/stdout")
+fi
+[[ "$batch_b33" == "$tool_b33" ]] || fail "batch b33 mismatch (keyinfo: $batch_b33, tool: $tool_b33)"
+
+# the batch file still parses as an offline-keys file (trailing bytes ignored)
+expect_ok "keyinfo -v reads the batch file" "$binary" keyinfo -v "$b33batch"
+expect_match "batch file carries an offline signature" 'Offline signature' "$tmpdir/stdout"
+
+# a RedDSA master key works too
+expect_ok "keygen RedDSA for the batch" "$binary" keygen "$tmpdir/red.dat" 11
+expect_ok "b33offlinekeys on a RedDSA key" "$binary" b33offlinekeys "$tmpdir/b33red.dat" "$tmpdir/red.dat" 1
+expect_ok "keyinfo -b on the RedDSA batch" "$binary" keyinfo -b "$tmpdir/b33red.dat"
+expect_match "keyinfo -b reports the 1-day RedDSA batch" '^b33 offline keys: 1 days, ' "$tmpdir/stdout"
+
+expect_failure "b33offlinekeys rejects zero days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 0
+expect_failure "b33offlinekeys rejects too many days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 70000
+expect_failure "b33offlinekeys rejects non-numeric days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" not-a-number
+expect_failure "b33offlinekeys rejects an offline-keys input" "$binary" b33offlinekeys "$tmpdir/x.dat" "$offlinefile" 2
+expect_failure "b33offlinekeys rejects a garbage key file" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/garbage.dat" 2
+expect_ok "keygen ECDSA for rejection" "$binary" keygen "$tmpdir/ecdsa.dat" 1
+expect_failure "b33offlinekeys rejects a non-blindable key" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/ecdsa.dat" 2
 
 ###############################################################################
 # i2pbase64
