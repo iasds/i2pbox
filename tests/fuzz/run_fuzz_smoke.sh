@@ -13,7 +13,7 @@ fails=0
 # four targets now run on every CI invocation. Remove this note if upstream
 # merges the same guard.
 
-for t in base64_decode b33address keyinfo routerinfo verifyhost; do
+for t in base64_decode b33address b33offline keyinfo routerinfo verifyhost; do
     seeds="tests/fuzz/corpus/$t"
     target="tests/fuzz/fuzz_${t}"
     # fuzz in a temp copy of the corpus so newly discovered units (named by
@@ -22,12 +22,22 @@ for t in base64_decode b33address keyinfo routerinfo verifyhost; do
     if [[ -d "$seeds" ]]; then
         cp -a "$seeds"/. "$tmpcorpus"/
     fi
-    echo "== $t (${seconds}s) =="
+    budget="$seconds"
+    case "$t" in
+        b33address)
+            # BlindedPublicKey RSS grows ~1 KB per exec (~134K exec/s
+            # measured); cap this target at 20s so the 60s scheduled deep
+            # run stays under -rss_limit_mb=4096. Push runs (15s) are
+            # unaffected.
+            if [[ "$budget" -gt 20 ]]; then budget=20; fi
+            ;;
+    esac
+    echo "== $t (${budget}s) =="
     # -rss_limit_mb=4096: the b33address target runs BlindedPublicKey, whose
     # OpenSSL 3 internals grow RSS slowly (~1.8 KB/call, invisible to LSan,
     # not in i2pbox code). 4096 MB fits CI runners and comfortably covers the
     # smoke budget; single CLI runs are unaffected.
-    if timeout "$((seconds + 15))" "$target" "$tmpcorpus" -max_total_time="$seconds" \
+    if timeout "$((budget + 15))" "$target" "$tmpcorpus" -max_total_time="$budget" \
         -rss_limit_mb=4096 -print_final_stats=1 >/tmp/fuzz-$t.log 2>&1; then
         echo "  ok"
     else
