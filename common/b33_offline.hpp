@@ -29,6 +29,20 @@ inline constexpr std::size_t kOfflineSignatureHeaderLength = 4 + 2; // expires, 
 inline constexpr uint64_t kSecondsPerDay = 24 * 60 * 60;
 inline constexpr int kB33OfflineMaxDays = 0xFFFF; // key count field is two bytes
 
+// A per-day expiry is a uint32 second count, so the usable day count is also
+// bounded by the 2106 epoch break, not just by the 16-bit key-count field:
+// past that point the timestamps wrap and the batch describes days in the
+// past. The bound shrinks by one day per day, so callers must derive it from
+// the current time rather than trusting kB33OfflineMaxDays.
+inline uint32_t MaxB33OfflineDays(uint64_t now)
+{
+    if (now >= UINT32_MAX)
+        return 0;
+    const uint64_t byExpiry = (UINT32_MAX - now) / kSecondsPerDay;
+    const uint64_t byField = static_cast<uint64_t>(kB33OfflineMaxDays);
+    return static_cast<uint32_t>(byExpiry < byField ? byExpiry : byField);
+}
+
 // Parse a batch at buf[0, len). On success fills numKeys/firstDate/lastDate
 // (dates as YYYYMMDD) and returns true. Returns false (no output) for a
 // missing, truncated, or otherwise malformed batch. Strictly bounds-checked:

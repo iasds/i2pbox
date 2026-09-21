@@ -91,7 +91,6 @@ int tool_keyinfo(int argc, char *argv[])
 		delete[] buf;
 		return 3;
 	}
-	// a b33 offline-keys batch may be appended after the online keys
 
 	auto dest = keys.GetPublic();
 	if(!dest) {
@@ -134,6 +133,8 @@ int tool_keyinfo(int argc, char *argv[])
 			std::cout << "Today's store hash: " << blindedKey.GetStoreHash ().ToBase64 () << std::endl;
 			uint16_t batchDays = 0;
 			std::string firstDate, lastDate;
+			// b33offlinekeys appends its batch after the online keys, which is
+			// where FromBuffer stopped. A malformed tail just goes unreported.
 			if (onlineLen < len && i2pbox::DescribeB33OfflineBatch(buf + onlineLen, len - onlineLen,
 			    dest->GetIdentHash(), batchDays, firstDate, lastDate))
 				std::cout << "b33 offline keys: " << batchDays << " days, "
