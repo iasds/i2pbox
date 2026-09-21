@@ -14,7 +14,8 @@ set -euo pipefail
 
 binary=${1:-./i2pbox}
 gen_router_info=${2:-./tests/gen_router_info}
-vectors_dir="$(dirname "${BASH_SOURCE[0]}")/vectors"
+tests_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+vectors_dir="$tests_dir/vectors"
 timeout_s=60
 
 # GNU coreutils is required (stat -c, timeout); fail loudly instead of
@@ -317,27 +318,93 @@ fi
 expect_ok "keyinfo -v reads the batch file" "$binary" keyinfo -v "$b33batch"
 expect_match "batch file carries an offline signature" 'Offline signature' "$tmpdir/stdout"
 
+# A malformed batch must be ignored, not walked past its end. Upstream's
+# keyinfo (i2pd-tools master) reads out of bounds on a truncated or inflated
+# batch; this reader is bounds-checked and fuzz-covered by
+# tests/fuzz/fuzz_b33offline.cpp.
+python3 - "$b33batch" "$tmpdir" <<'PY'
+import struct
+import sys
+src, out = sys.argv[1], sys.argv[2]
+data = bytearray(open(src, "rb").read())
+tail = len(data) - (35 + 2 * 134)  # 2-day batch, 134 bytes per entry
+open(out + "/b33trunc.dat", "wb").write(data[:len(data) - 134])
+inflated = bytearray(data)
+inflated[tail + 33:tail + 35] = struct.pack(">H", 65535)
+open(out + "/b33inflated.dat", "wb").write(inflated)
+PY
+expect_ok "keyinfo -b ignores a truncated batch" "$binary" keyinfo -b "$tmpdir/b33trunc.dat"
+if grep -q '^b33 offline keys: ' "$tmpdir/stdout"; then
+    fail "keyinfo -b reported a span for a truncated batch"
+fi
+expect_ok "keyinfo -b ignores an inflated day count" "$binary" keyinfo -b "$tmpdir/b33inflated.dat"
+if grep -q '^b33 offline keys: ' "$tmpdir/stdout"; then
+    fail "keyinfo -b reported a span for an inflated batch"
+fi
+# the online keys are untouched, so the file still loads as an offline-keys file
+expect_ok "keyinfo -v still reads a truncated batch file" "$binary" keyinfo -v "$tmpdir/b33trunc.dat"
+expect_match "truncated batch file still carries an offline signature" 'Offline signature' "$tmpdir/stdout"
+
 # a RedDSA master key works too
 expect_ok "keygen RedDSA for the batch" "$binary" keygen "$tmpdir/red.dat" 11
 expect_ok "b33offlinekeys on a RedDSA key" "$binary" b33offlinekeys "$tmpdir/b33red.dat" "$tmpdir/red.dat" 1
 expect_ok "keyinfo -b on the RedDSA batch" "$binary" keyinfo -b "$tmpdir/b33red.dat"
 expect_match "keyinfo -b reports the 1-day RedDSA batch" '^b33 offline keys: 1 days, ' "$tmpdir/stdout"
 
-expect_failure "b33offlinekeys rejects zero days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 0
-expect_failure "b33offlinekeys rejects too many days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 70000
-expect_failure "b33offlinekeys rejects non-numeric days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" not-a-number
-expect_failure "b33offlinekeys rejects an offline-keys input" "$binary" b33offlinekeys "$tmpdir/x.dat" "$offlinefile" 2
-expect_failure "b33offlinekeys rejects a garbage key file" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/garbage.dat" 2
+expect_clean_failure "b33offlinekeys rejects zero days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 0
+expect_clean_failure "b33offlinekeys rejects too many days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 70000
+expect_clean_failure "b33offlinekeys rejects non-numeric days" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" not-a-number
+expect_clean_failure "b33offlinekeys rejects an offline-keys input" "$binary" b33offlinekeys "$tmpdir/x.dat" "$offlinefile" 2
+expect_clean_failure "b33offlinekeys rejects a garbage key file" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/garbage.dat" 2
 expect_ok "keygen ECDSA for rejection" "$binary" keygen "$tmpdir/ecdsa.dat" 1
-expect_failure "b33offlinekeys rejects a non-blindable key" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/ecdsa.dat" 2
-expect_failure "b33offlinekeys rejects identical output and input" "$binary" b33offlinekeys "$keyfile" "$keyfile" 2
-expect_failure "b33offlinekeys rejects days above the two-byte max" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 65536
+expect_clean_failure "b33offlinekeys rejects a non-blindable key" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/ecdsa.dat" 2
+expect_clean_failure "b33offlinekeys rejects identical output and input" "$binary" b33offlinekeys "$keyfile" "$keyfile" 2
+
+# The day cap is the uint32 expiry horizon (~2106), not the 16-bit key-count
+# field: 65535 used to be accepted and wrote a file whose inner offline
+# signature expiry wrapped into the past, so no reader (i2pbox or i2pd) would
+# load it while the command still reported success.
+days_horizon=$(python3 -c 'import time; print((2**32 - 1 - int(time.time())) // 86400)')
+expect_clean_failure "b33offlinekeys rejects the old 16-bit cap" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 65535
+expect_match "b33offlinekeys reports a capped day count" '^days must be an integer between 1 and [0-9]+$' "$tmpdir/stderr"
+reported_horizon=$(sed -n 's/^days must be an integer between 1 and \([0-9]*\)$/\1/p' "$tmpdir/stderr")
+if [[ -z "$reported_horizon" ]]; then
+    fail "b33offlinekeys did not report its day cap"
+elif (( reported_horizon > days_horizon || reported_horizon + 1 < days_horizon )); then
+    fail "b33offlinekeys day cap $reported_horizon is not the expiry horizon $days_horizon"
+fi
+# one day past the horizon is rejected (the horizon itself is accepted, but
+# generating ~29k days takes ~20s, so the suite does not build that batch)
+expect_clean_failure "b33offlinekeys rejects days past the horizon" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" "$((days_horizon + 1))"
 
 # default days (365) exercises the argc==3 path
 expect_ok "b33offlinekeys defaults to 365 days" "$binary" b33offlinekeys "$tmpdir/b33default.dat" "$keyfile"
 expect_match "b33offlinekeys reports 365 days" '^Address [a-z2-7]+\.b32\.i2p, 365 days$' "$tmpdir/stdout"
 expect_ok "keyinfo -b on the default batch" "$binary" keyinfo -b "$tmpdir/b33default.dat"
 expect_match "keyinfo -b reports the 365-day span" '^b33 offline keys: 365 days, [0-9]{8} to [0-9]{8}$' "$tmpdir/stdout"
+
+# The committed fuzz seed is an offline-signed batch, so it carries an expiry:
+# once it passes, PrivateKeys::FromBuffer rejects the file and fuzz_b33offline
+# returns before reaching the batch parser, silently losing its coverage. Fail
+# here (well before that happens) instead of discovering it years later.
+b33_seed="$tests_dir/fuzz/corpus/b33offline/ed25519-batch.keys"
+if [[ -f "$b33_seed" ]]; then
+    if expect_ok "committed fuzz seed still loads" "$binary" keyinfo -b "$b33_seed"; then
+        expect_match "committed fuzz seed still carries a batch" '^b33 offline keys: [0-9]+ days, [0-9]{8} to [0-9]{8}$' "$tmpdir/stdout"
+        seed_last=$(sed -n 's/^b33 offline keys: .* to \([0-9]\{8\}\)$/\1/p' "$tmpdir/stdout")
+        if [[ -z "$seed_last" ]]; then
+            fail "committed fuzz seed has no readable batch span"
+        elif ! python3 - "$seed_last" <<'PY'
+import datetime
+import sys
+last = datetime.datetime.strptime(sys.argv[1], "%Y%m%d").replace(tzinfo=datetime.timezone.utc)
+sys.exit(0 if (last - datetime.datetime.now(datetime.timezone.utc)).days >= 90 else 1)
+PY
+        then
+            fail "committed fuzz seed expires soon ($seed_last), regenerate tests/fuzz/corpus/b33offline/ed25519-batch.keys"
+        fi
+    fi
+fi
 
 ###############################################################################
 # i2pbase64
