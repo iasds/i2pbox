@@ -33,7 +33,7 @@ static std::vector<uint8_t> createB33OfflineKeys(const i2p::data::PrivateKeys& k
     i2p::data::SigningKeyType transientSigType, int days)
 {
     std::vector<uint8_t> buf;
-    if (days < 1 || days > i2pbox::kB33OfflineMaxDays) return buf;
+    if (days < 1 || static_cast<uint32_t>(days) > i2pbox::MaxB33OfflineDays(i2p::util::GetSecondsSinceEpoch())) return buf;
     auto identity = keys.GetPublic();
     i2p::data::BlindedPublicKey blindedKey(identity);
     if (!blindedKey.IsValid()) return buf;
@@ -93,17 +93,25 @@ int tool_b33offlinekeys(int argc, char *argv[])
         std::cerr << "output file must be different from the input keys file" << std::endl;
         return 1;
     }
+    // Per-day expiries are uint32, so days are caged by the 2106 epoch break as
+    // well as by the 16-bit key-count field: a larger count wraps the expiry
+    // into the past and yields a file no reader accepts (the offline signature
+    // of the inner keys expires with it).
+    const uint32_t maxDays = i2pbox::MaxB33OfflineDays(i2p::util::GetSecondsSinceEpoch());
     int days = 365; // 1 year by default
     if (argc > 3) {
         const std::string_view input(argv[3]);
         unsigned parsed = 0;
         const auto [end, error] = std::from_chars(input.data(), input.data() + input.size(), parsed);
-        if (error != std::errc{} || end != input.data() + input.size() ||
-            parsed < 1 || parsed > static_cast<unsigned>(i2pbox::kB33OfflineMaxDays)) {
-            std::cerr << "days must be an integer between 1 and " << i2pbox::kB33OfflineMaxDays << std::endl;
+        if (error != std::errc{} || end != input.data() + input.size() || parsed > maxDays) {
+            std::cerr << "days must be an integer between 1 and " << maxDays << std::endl;
             return 6;
         }
         days = static_cast<int>(parsed);
+    }
+    if (days < 1 || static_cast<uint32_t>(days) > maxDays) {
+        std::cerr << "days must be an integer between 1 and " << maxDays << std::endl;
+        return 6;
     }
 
     i2p::data::PrivateKeys keys;
