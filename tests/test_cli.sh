@@ -265,6 +265,11 @@ expect_ok "keyinfo -d on the fixed vector key" "$binary" keyinfo -d "$vectors_di
 if ! grep -F -q "$(cat "$vectors_dir/ed25519.dest")" "$tmpdir/stdout"; then
     fail "destination does not match the vector"
 fi
+# golden vector: the full keyinfo -v block for that fixed key
+expect_ok "keyinfo -v on the fixed vector key" "$binary" keyinfo -v "$vectors_dir/ed25519.keys"
+if ! diff -q "$tmpdir/stdout" "$vectors_dir/ed25519.info" >/dev/null; then
+    fail "keyinfo -v output differs from the golden vector"
+fi
 
 ###############################################################################
 # offlinekeys
@@ -317,6 +322,15 @@ fi
 # the batch file still parses as an offline-keys file (trailing bytes ignored)
 expect_ok "keyinfo -v reads the batch file" "$binary" keyinfo -v "$b33batch"
 expect_match "batch file carries an offline signature" 'Offline signature' "$tmpdir/stdout"
+
+# keyinfo -p serializes the online keys and the batch, matching upstream's
+# libi2pd (which re-emits the parsed batch inside ToBuffer), so a -p round trip
+# reproduces the file instead of dropping the per-day keys
+expect_ok "keyinfo -p on the batch file" "$binary" keyinfo -p "$b33batch"
+"$binary" i2pbase64 -d "$tmpdir/stdout" > "$tmpdir/b33roundtrip.dat"
+if ! cmp -s "$tmpdir/b33roundtrip.dat" "$b33batch"; then
+    fail "keyinfo -p round trip did not reproduce the batch file"
+fi
 
 # A malformed batch must be ignored, not walked past its end. Upstream's
 # keyinfo (i2pd-tools master) reads out of bounds on a truncated or inflated
