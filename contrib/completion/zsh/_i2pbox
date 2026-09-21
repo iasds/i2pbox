@@ -12,6 +12,7 @@ _i2pbox() {
     'regaddr_3ld:Register a 3LD address'
     'i2pbase64:Encode/decode I2P Base64'
     'offlinekeys:Generate offline signing keys'
+    'b33offlinekeys:Generate per-day keys for an encrypted LeaseSet'
     'b33address:Convert Base64 destination to b33'
     'regaddralias:Register an address alias'
     'x25519:Generate X25519 key pair'

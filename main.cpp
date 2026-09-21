@@ -22,6 +22,7 @@ static const Command commands[] = {
     {"regaddr_3ld",    "Register a 3LD address (3-step process)",             "<step1|step2|step3> <args...>",      tool_regaddr_3ld,   false},
     {"i2pbase64",      "Encode/decode I2P Base64",                            "[-d] [filename]",                    tool_i2pbase64,     false},
     {"offlinekeys",    "Generate offline signing keys",                       "<output> <keys> <signature-type> <days>", tool_offlinekeys, false},
+    {"b33offlinekeys", "Generate per-day keys for an encrypted LeaseSet",       "<output> <keys> [days]",                 tool_b33offlinekeys, false},
     {"b33address",     "Convert Base64 destination to b33 address",           "(reads base64 destination from stdin)", tool_b33address, false},
     {"regaddralias",   "Register an address alias",                           "<old-file> <new-file> <address>",    tool_regaddralias,  false},
     {"x25519",         "Generate X25519 key pair for encrypted LeaseSet",     nullptr,                              tool_x25519,        false},

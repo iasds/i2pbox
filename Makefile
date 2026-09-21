@@ -55,7 +55,7 @@ endif
 
 # Object files for all tools + main
 OBJS := main.o vain.o keygen.o keyinfo.o famtool.o routerinfo.o \
-        regaddr.o regaddr_3ld.o i2pbase64.o offlinekeys.o b33address.o \
+        regaddr.o regaddr_3ld.o i2pbase64.o offlinekeys.o b33offlinekeys.o b33address.o \
         regaddralias.o x25519.o verifyhost.o autoconf_i2pd.o
 
 # Header dependency files (-MMD -MP), generated next to each object file
@@ -151,11 +151,13 @@ FUZZ_CC ?= clang++
 FUZZ_CXXFLAGS := -g -O1 -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined
 FUZZ_STANDALONE := tests/fuzz/fuzz_base64_decode_standalone \
                    tests/fuzz/fuzz_b33address_standalone \
+                   tests/fuzz/fuzz_b33offline_standalone \
                    tests/fuzz/fuzz_keyinfo_standalone \
                    tests/fuzz/fuzz_routerinfo_standalone \
                    tests/fuzz/fuzz_verifyhost_standalone
 
 fuzz-build: tests/fuzz/fuzz_base64_decode tests/fuzz/fuzz_b33address \
+            tests/fuzz/fuzz_b33offline \
             tests/fuzz/fuzz_keyinfo tests/fuzz/fuzz_routerinfo \
             tests/fuzz/fuzz_verifyhost
 
@@ -167,6 +169,9 @@ tests/fuzz/fuzz_base64_decode: tests/fuzz/fuzz_base64_decode.cpp $(I2PD_LIB) i2p
 
 tests/fuzz/fuzz_b33address: tests/fuzz/fuzz_b33address.cpp $(I2PD_LIB)
 	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
+
+tests/fuzz/fuzz_b33offline: tests/fuzz/fuzz_b33offline.cpp $(I2PD_LIB)
+	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -I. -o $@ $< $(LDLIBS)
 
 tests/fuzz/fuzz_keyinfo: tests/fuzz/fuzz_keyinfo.cpp $(I2PD_LIB)
 	$(FUZZ_CC) $(FUZZ_CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< $(LDLIBS)
@@ -182,6 +187,9 @@ tests/fuzz/fuzz_base64_decode_standalone: tests/fuzz/fuzz_base64_decode.cpp test
 
 tests/fuzz/fuzz_b33address_standalone: tests/fuzz/fuzz_b33address.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
+
+tests/fuzz/fuzz_b33offline_standalone: tests/fuzz/fuzz_b33offline.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
+	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -I. -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
 
 tests/fuzz/fuzz_keyinfo_standalone: tests/fuzz/fuzz_keyinfo.cpp tests/fuzz/standalone_main.cpp $(I2PD_LIB)
 	$(CXX) $(CXXFLAGS) $(DEFINES) $(INCFLAGS) -o $@ $< tests/fuzz/standalone_main.cpp $(LDLIBS)
