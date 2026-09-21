@@ -1,7 +1,7 @@
 # bash completion for i2pbox — source this file or install to /etc/bash_completion.d/
 _i2pbox_complete() {
   local cur prev cmds
-  cmds="vain keygen keyinfo famtool routerinfo regaddr regaddr_3ld i2pbase64 offlinekeys b33address regaddralias x25519 verifyhost autoconf_i2pd help version"
+  cmds="vain keygen keyinfo famtool routerinfo regaddr regaddr_3ld i2pbase64 offlinekeys b33offlinekeys b33address regaddralias x25519 verifyhost autoconf_i2pd help version"
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   # subcommand as first arg

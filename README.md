@@ -53,6 +53,7 @@ i2pbox help
 | `regaddralias` | Register an address alias |
 | `i2pbase64` | Encode/decode I2P Base64 |
 | `offlinekeys` | Generate offline signing keys |
+| `b33offlinekeys` | Generate per-day keys for an encrypted LeaseSet |
 | `b33address` | Convert Base64 destination to b33 address |
 | `x25519` | Generate X25519 key pair for encrypted LeaseSet |
 | `verifyhost` | Verify host record signature |
@@ -90,7 +91,7 @@ i2pbox keyinfo [-v] [-d] [-p] [-b] <keyfile>
 | `-v` | Full details: destination, hash, b32, signature type, encryption type, offline status |
 | `-d` | Base64 destination (public key) |
 | `-p` | Base64 private key |
-| `-b` | Blinded b33 address (for encrypted LeaseSet) |
+| `-b` | Blinded b33 address (for encrypted LeaseSet) + b33 offline-keys batch span, if present |
 
 ```bash
 i2pbox keyinfo router.keys          # → abcdef....b32.i2p
@@ -246,6 +247,24 @@ i2pbox offlinekeys <output> <master-keyfile> [sig-type] [days]
 i2pbox offlinekeys offline.dat router.keys 7 90   # valid 90 days
 ```
 
+### b33offlinekeys
+
+```
+i2pbox b33offlinekeys <output> <master-keyfile> [days]
+```
+
+Per-day keys that let a router publish an encrypted LeaseSet (a b33 address) without holding the destination's signing key. The output bundles an offline-signed inner key (valid exactly as long as the batch) with the per-day blinded transients; the destination must be Ed25519 or RedDSA. `keyinfo -b` on the output file reports the batch span.
+
+```bash
+i2pbox b33offlinekeys b33batch.dat router.keys 365
+# → Address abcdef....b32.i2p, 365 days
+#   Give the router this file and keep the destination keys offline:
+#     keys = b33batch.dat
+#     i2cp.leaseSetType = 5
+```
+
+Ported from upstream `b33offlinekeys` (i2pd-tools PR #124); the batch layout matches upstream so files stay compatible with i2pd once it learns to read them.
+
 ### b33address
 
 ```
@@ -385,7 +404,7 @@ are best-effort; please report breakage.
 
 ### Behavioral differences?
 
-None known. Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals (the one documented deviation is keygen's RSA fallback, see above). The regression suite (`tests/test_cli.sh`) covers all 14 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
+None known. Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals (the one documented deviation is keygen's RSA fallback, see above). The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
 
 ### Alias original names?
 

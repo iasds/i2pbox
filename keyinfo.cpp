@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "common/key.hpp"
+#include "common/b33_offline.hpp"
 #include <openssl/crypto.h>
 
 static int printHelp(const char * exe, int exitcode)
@@ -83,12 +84,14 @@ int tool_keyinfo(int argc, char *argv[])
 		return 3;
 	}
 
-	if (!keys.FromBuffer(buf, len)) {
+	const std::size_t onlineLen = keys.FromBuffer(buf, len);
+	if (!onlineLen) {
 		std::cerr << "bad key file format" << std::endl;
 		OPENSSL_cleanse(buf, len);
 		delete[] buf;
 		return 3;
 	}
+	// a b33 offline-keys batch may be appended after the online keys
 
 	auto dest = keys.GetPublic();
 	if(!dest) {
@@ -129,6 +132,12 @@ int tool_keyinfo(int argc, char *argv[])
 			i2p::data::BlindedPublicKey blindedKey (dest);
 			std::cout << "b33 address: " << blindedKey.ToB33 () << ".b32.i2p" << std::endl;
 			std::cout << "Today's store hash: " << blindedKey.GetStoreHash ().ToBase64 () << std::endl;
+			uint16_t batchDays = 0;
+			std::string firstDate, lastDate;
+			if (onlineLen < len && i2pbox::DescribeB33OfflineBatch(buf + onlineLen, len - onlineLen,
+			    dest->GetIdentHash(), batchDays, firstDate, lastDate))
+				std::cout << "b33 offline keys: " << batchDays << " days, "
+				    << firstDate << " to " << lastDate << std::endl;
 		}
 		else {
 			std::cerr << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;

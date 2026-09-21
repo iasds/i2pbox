@@ -10,6 +10,7 @@ int tool_regaddr(int argc, char *argv[]);
 int tool_regaddr_3ld(int argc, char *argv[]);
 int tool_i2pbase64(int argc, char *argv[]);
 int tool_offlinekeys(int argc, char *argv[]);
+int tool_b33offlinekeys(int argc, char *argv[]);
 int tool_b33address(int argc, char *argv[]);
 int tool_regaddralias(int argc, char *argv[]);
 int tool_x25519(int argc, char *argv[]);
