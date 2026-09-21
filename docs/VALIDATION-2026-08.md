@@ -182,3 +182,37 @@ the only libi2pd that carries the `B33OfflineKeys` support the tools expect.
 Reproduction: build the reference libi2pd (`git -C i2pd fetch --depth 1 <fork> b33-offline-keys`),
 `make -C i2pd libi2pd.a`, then `make b33offlinekeys keyinfo` in i2pd-tools; a shared
 master key file is enough to compare both generators.
+
+## 13. Command-by-command parity against upstream i2pd-tools (2026-09-21)
+
+The released v2.1 binary and the current worktree were compared with upstream
+PurpleI2P/i2pd-tools master `39f45c6`, built twice: its own pinned libi2pd
+`80080fd` for the 13 tools that do not need the b33 API, and
+`freeacetone/i2pd` `b33-offline-keys` `fad677b` for `keyinfo` and
+`b33offlinekeys`. Every subcommand ran under both implementations with the
+same arguments: read-only commands had to print byte-identical output and
+exit codes, deterministic writers had to write identical bytes, random writers
+were compared by shape and by reading each other's output.
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| The released v2.1 artifact passes the project's own suite | `tests/test_cli.sh <release tarball binary>` | PASS (all 15 groups) |
+| Readers agree on shared files | `keyinfo` (bare, `-v`, `-d`, `-p`, `-b`) on 10 keys including both tools' `offlinekeys` and `b33offlinekeys` output; `routerinfo` (bare, `-6`, `-f`, `-p`, `-y`) on 3 router.info files | identical except the two documented diagnostics differences below |
+| Deterministic writers are byte-identical | `regaddr`, `regaddr_3ld` step1-3, `regaddralias`, `i2pbase64` (both directions), `b33address` | PASS |
+| Cross-implementation chains | i2pbox record verified by upstream `verifyhost` and vice versa; upstream `famtool -V` verifies an i2pbox-signed router.info; each side's `keygen`/`offlinekeys`/`b33offlinekeys` output read by the other | PASS |
+| Random writers match in shape | `keygen` types 7/11/1/4/0 same report and size, `x25519` same output shape, `offlinekeys` 7/11 same size, `b33offlinekeys` identical structure | PASS |
+| Overall verdict | 121 comparisons | 97 identical, 24 differing, all classified below |
+| `keyinfo -p` must keep a b33 batch | upstream `-p` decodes to the whole 1518-byte batch file; i2pbox v2.1 printed only the 813 online bytes | **fixed**; now byte-identical (2025-byte base64, round trip reproduces the file) and covered by a new suite assertion |
+| `keyinfo -p` on a corrupt batch | truncate the last day, inflate the day count, random tail, wrong ident hash | batch absent from both, differs on corrupt tails: i2pbox drops what does not parse (1085 b64 bytes), upstream re-emits the raw bytes it stored (1849/2025/1665). Wrong ident hash: identical (batch dropped by both). Keeping the strict behaviour is deliberate: the router-side consumer rejects a truncated batch wholesale |
+| Help surface | `-h`/`--help` on all 15 subcommands | 13 differ: i2pbox prints `Usage: i2pbox <cmd> ...` everywhere, upstream has no help flag for keygen (writes a file named `-h`/`--help`), regaddr, regaddr_3ld, routerinfo, b33address, verifyhost or autoconf_i2pd, and prints its own usage with the binary path where it does |
+| Diagnostics stream and exit status | `keyinfo -b` on an ECDSA key, `keyinfo -v` on a router.info | differ by design: i2pbox writes to stderr and exits 1, upstream writes to stdout and exits 0 |
+| keygen RSA types | `keygen 4/5/6` on both sides | upstream writes a **DSA-SHA1** identity while reporting `RSA-2048/3072/4096` (both `keyinfo` implementations read it as DSA-SHA1); i2pbox warns and generates EdDSA (documented fallback) |
+| Upstream robustness | upstream `famtool -s` on a valid router.info, upstream `autoconf_i2pd` with stdin at EOF | upstream `famtool -s` segfaults with both libi2pd builds (`RouterInfo::Update` -> `IdentityEx::GetSignatureLen`, null verifier in the unpinned libi2pd); upstream `autoconf_i2pd` prints ~299k lines and then segfaults. i2pbox signs and verifies the same files, and exits 1 on EOF |
+| Stricter parsing | `routerinfo` on `tests/vectors/ed25519.info` (a saved `keyinfo -v` text dump) and on random bytes | i2pbox rejects both; upstream's older pin prints a router hash computed from garbage. The fixture was also unused, and is now wired in as a golden `keyinfo -v` vector |
+| README accuracy | keygen RSA type numbers | corrected to `4`/`5`/`6` (was `6`/`8`/`12`; `8` is EdDSA-SHA512-ED25519ph) |
+| Adversarial batch handling | truncate last day, inflate the day count, random tail, wrong ident hash | i2pbox rejects cleanly and ASan-clean; upstream `keyinfo` reads out of bounds (see section 12) |
+
+Reproduction: `make` in an upstream i2pd-tools clone (after pointing the
+submodule at the b33 branch), then drive both binaries from one script over a
+shared fixture set. The harness is throwaway, the assertions above are the
+durable part.
