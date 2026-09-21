@@ -10,7 +10,7 @@ fails=0
 # NOTE: routerinfo previously skipped due to ECDSAVerifier::Verify null EVP_PKEY
 # crash on OpenSSL 3.0-3.4 (upstream i2pd #1997). Fixed locally in
 # i2pd/libi2pd/Signature.cpp (early return when m_PublicKey is null); all
-# four targets now run on every CI invocation. Remove this note if upstream
+# six targets now run on every CI invocation. Remove this note if upstream
 # merges the same guard.
 
 for t in base64_decode b33address b33offline keyinfo routerinfo verifyhost; do
