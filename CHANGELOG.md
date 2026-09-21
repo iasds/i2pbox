@@ -3,6 +3,35 @@
 Notable changes per release. Older releases are described in the
 [GitHub releases](https://github.com/iasds/i2pbox/releases).
 
+## v2.1.1 — 2026-09-21
+
+Cross-checked against upstream i2pd-tools command by command; one behavioural
+gap fixed and one documentation error found. 15 subcommands, no format
+changes.
+
+### Fixed
+
+- **`keyinfo -p` keeps a b33 offline-keys batch**: the output serializes the
+  online keys together with the batch, matching upstream's libi2pd, so a `-p`
+  round trip reproduces a batch file instead of silently dropping the per-day
+  keys (v2.1 printed the 813 online bytes of a 1518-byte file). A batch that
+  does not parse is still dropped rather than re-emitted verbatim, which keeps
+  the reader bounds-checked.
+- README: keygen's RSA signature types are `4`/`5`/`6`
+  (RSA-2048/3072/4096), not `6`/`8`/`12` (`8` is EdDSA-SHA512-ED25519ph).
+
+### Tests and docs
+
+- suite: a `keyinfo -p` batch round trip, and `tests/vectors/ed25519.info`
+  (the golden `keyinfo -v` output, previously unreferenced) is now asserted.
+- `docs/VALIDATION-2026-08.md` section 13: the command-by-command parity run
+  against i2pd-tools master, 97 of 121 comparisons identical with the rest
+  classified. It also records upstream writing DSA-SHA1 identities for
+  `keygen 4/5/6` while reporting RSA, upstream `famtool -s` segfaulting, and
+  upstream `autoconf_i2pd` looping until it crashes on stdin EOF.
+- README: the per-command differences against upstream are an explicit list
+  instead of one paragraph.
+
 ## v2.1 — 2026-09-21
 
 15 subcommands. New `b33offlinekeys`, a fix to the b33 day handling, and

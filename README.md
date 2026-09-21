@@ -72,7 +72,7 @@ i2pbox keygen <output-file> [signature-type]
 | `output-file` | *(required)* | Path to save the key file |
 | `signature-type` | `7` (EdDSA) | `0`=DSA, `1`=ECDSA-P256, `3`=ECDSA-P521, `7`=EdDSA, `11`=RedDSA |
 
-RSA types (`6`=RSA-2048, `8`=RSA-3072, `12`=RSA-4096) are rejected with a warning and fall back to EdDSA.
+RSA types (`4`=RSA-2048, `5`=RSA-3072, `6`=RSA-4096) are rejected with a warning and fall back to EdDSA.
 
 ```bash
 i2pbox keygen router.keys           # EdDSA (default)
@@ -90,7 +90,7 @@ i2pbox keyinfo [-v] [-d] [-p] [-b] <keyfile>
 | *(none)* | `.b32.i2p` address |
 | `-v` | Full details: destination, hash, b32, signature type, encryption type, offline status |
 | `-d` | Base64 destination (public key) |
-| `-p` | Base64 private key (online keys only, a b33 offline-keys batch is not included) |
+| `-p` | Base64 private key, including a b33 offline-keys batch that parses (a corrupt tail is dropped, upstream re-emits it verbatim) |
 | `-b` | Blinded b33 address (for encrypted LeaseSet) + b33 offline-keys batch span, if present |
 
 ```bash
@@ -255,7 +255,7 @@ i2pbox b33offlinekeys <output> <master-keyfile> [days]
 
 Per-day keys that let a router publish an encrypted LeaseSet (a b33 address) without holding the destination's signing key. The output bundles an offline-signed inner key (valid exactly as long as the batch) with the per-day blinded transients; the destination must be Ed25519 or RedDSA. `keyinfo -b` on the output file reports the batch span.
 
-The day count is capped by the 32-bit expiry format, not just by the 16-bit key-count field: `days` must be between 1 and `(UINT32_MAX - now) / 86400` (28,992 on 2026-09-21, one less each day). A larger count would wrap the per-day expiries into the past and write a file no reader loads, so it is rejected up front. Keep the destination keys: the file cannot be rebuilt from `keyinfo -p` output, which covers the online keys only.
+The day count is capped by the 32-bit expiry format, not just by the 16-bit key-count field: `days` must be between 1 and `(UINT32_MAX - now) / 86400` (28,992 on 2026-09-21, one less each day). A larger count would wrap the per-day expiries into the past and write a file no reader loads, so it is rejected up front. `keyinfo -p` keeps the batch, so a `-p` round trip reproduces the file.
 
 ```bash
 i2pbox b33offlinekeys b33batch.dat router.keys 365
@@ -407,7 +407,46 @@ are best-effort; please report breakage.
 
 ### Behavioral differences?
 
-Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals, with documented deviations: keygen's RSA fallback (see above), and `b33offlinekeys` hardening — errors go to stderr with distinct exit codes (upstream prints to stdout, aborts on non-numeric days, and can report success after a failed write), output files are 0600, days are strictly validated against the 32-bit expiry horizon (upstream accepts up to 65,535 and silently writes a batch whose expiries wrapped into the past), non-blindable destinations are rejected up front, and key material is cleansed on failure paths. The batch layout itself is byte-identical to upstream. The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
+Each subcommand is built from the same upstream i2pd-tools logic, and the file
+formats are identical: `make interop` plus the command-by-command parity run
+recorded in `docs/VALIDATION-2026-08.md` (section 13) check that read-only
+commands print the same output, deterministic writers produce the same bytes,
+and each implementation reads the other's files. What differs is diagnostics
+and hardening:
+
+- **`-h`/`--help` on every subcommand.** Upstream has no help flag for keygen
+  (it writes a file named `--help`), regaddr, regaddr_3ld, routerinfo,
+  b33address, verifyhost or autoconf_i2pd.
+- **Diagnostics go to stderr and exit non-zero.** Upstream mostly prints errors
+  to stdout, and `keyinfo -b` on a destination type with no b33 address exits 0
+  after complaining.
+- **keygen's RSA fallback.** RSA signature types warn and generate EdDSA
+  (upstream generates RSA, which no I2P router accepts).
+- **`b33address`** prompts only on a TTY so `keyinfo -d | b33address` stays
+  clean, prompts on stderr, and caps stdin at 8 KiB.
+- **`autoconf_i2pd`** exits non-zero when stdin runs out instead of looping;
+  upstream's build prints ~299k lines and then segfaults on its own pinned
+  libi2pd.
+- **`famtool`** adds `-P` (password) and `-e` (validity), see above.
+- **`b33offlinekeys`**: day counts are capped at the 32-bit expiry horizon
+  (upstream accepts up to 65,535 and silently writes a batch whose expiries
+  wrapped into the past), errors go to stderr with distinct exit codes, output
+  files are 0600, non-blindable destinations are rejected up front, and key
+  material is cleansed on failure paths. The batch layout itself is
+  byte-identical to upstream.
+- **`keyinfo -b`** uses a bounds-checked batch reader; upstream's walks past the
+  end of a truncated or inflated batch (ASan heap-buffer-overflow). For the same
+  reason `keyinfo -p` keeps a batch that parses (matching upstream byte for
+  byte) but drops a corrupt one, which upstream copies back verbatim.
+- **Stricter parsing**: i2pbox pins a newer libi2pd, so `routerinfo` rejects
+  input that is not a router.info, where upstream's older pin prints a router
+  hash computed from garbage.
+
+The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with
+cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo,
+offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify),
+golden vectors, and format assertions. CI runs it on both a normal build and an
+ASan/UBSan build with leak detection.
 
 ### Alias original names?
 
