@@ -141,8 +141,9 @@ int tool_b33offlinekeys(int argc, char *argv[])
         return 4;
     }
     // only a blindable destination has a b33 address at all. NB: gate on the
-    // signature type first — constructing BlindedPublicKey on other types
-    // aborts inside libi2pd instead of reporting invalid.
+    // signature type first, so non-blindable destinations fail fast with a
+    // clear error (exit 5) instead of falling through to a generic creation
+    // failure (BlindedPublicKey::IsValid can't tell blindable types apart).
     const auto destSigType = keys.GetPublic()->GetSigningKeyType();
     if (destSigType != i2p::data::SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519 &&
         destSigType != i2p::data::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519) {

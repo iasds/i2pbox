@@ -404,7 +404,7 @@ are best-effort; please report breakage.
 
 ### Behavioral differences?
 
-None known. Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals (the one documented deviation is keygen's RSA fallback, see above). The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
+Each subcommand is built from the same upstream i2pd-tools logic, so behavior mirrors the originals, with documented deviations: keygen's RSA fallback (see above), and `b33offlinekeys` hardening — errors go to stderr with distinct exit codes (upstream prints to stdout, aborts on non-numeric days, and can report success after a failed write), output files are 0600, days are strictly validated, non-blindable destinations are rejected up front, and key material is cleansed on failure paths. The batch layout itself is byte-identical to upstream. The regression suite (`tests/test_cli.sh`) covers all 15 subcommands with cross-tool interoperability chains (regaddr → verifyhost, keygen → keyinfo, offlinekeys → keyinfo, b33offlinekeys → keyinfo -b, famtool sign → verify), golden vectors, and format assertions. CI runs it on both a normal build and an ASan/UBSan build with leak detection.
 
 ### Alias original names?
 

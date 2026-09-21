@@ -298,7 +298,8 @@ expect_match "b33offlinekeys prints the tunnel hint" '^  i2cp\.leaseSetType = 5$
 # keyinfo -b on the batch file must show the same b33 address as the tool
 expect_ok "keyinfo -b on the batch file" "$binary" keyinfo -b "$b33batch"
 expect_match "keyinfo -b reports the batch span" '^b33 offline keys: 2 days, [0-9]{8} to [0-9]{8}$' "$tmpdir/stdout"
-batch_b33=$(grep '^b33 address: ' "$tmpdir/stdout")
+batch_b33=$(grep '^b33 address: ' "$tmpdir/stdout" || true)
+[[ -n "$batch_b33" ]] || fail "keyinfo -b printed no b33 address line"
 expect_ok "keyinfo -d on the master key" "$binary" keyinfo -d "$keyfile"
 # NOTE: stage through a variable: in `printf | run` the run-side stdout
 # redirect truncates $tmpdir/stdout before $(cat ...) may expand.
@@ -307,7 +308,8 @@ if ! printf '%s' "$master_dest" | run "$binary" b33address; then
     fail "b33address on the master key failed"
     tool_b33=
 else
-    tool_b33=$(grep '^b33 address: ' "$tmpdir/stdout")
+    tool_b33=$(grep '^b33 address: ' "$tmpdir/stdout" || true)
+    [[ -n "$tool_b33" ]] || fail "b33address printed no b33 address line"
 fi
 [[ "$batch_b33" == "$tool_b33" ]] || fail "batch b33 mismatch (keyinfo: $batch_b33, tool: $tool_b33)"
 
@@ -328,6 +330,14 @@ expect_failure "b33offlinekeys rejects an offline-keys input" "$binary" b33offli
 expect_failure "b33offlinekeys rejects a garbage key file" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/garbage.dat" 2
 expect_ok "keygen ECDSA for rejection" "$binary" keygen "$tmpdir/ecdsa.dat" 1
 expect_failure "b33offlinekeys rejects a non-blindable key" "$binary" b33offlinekeys "$tmpdir/x.dat" "$tmpdir/ecdsa.dat" 2
+expect_failure "b33offlinekeys rejects identical output and input" "$binary" b33offlinekeys "$keyfile" "$keyfile" 2
+expect_failure "b33offlinekeys rejects days above the two-byte max" "$binary" b33offlinekeys "$tmpdir/x.dat" "$keyfile" 65536
+
+# default days (365) exercises the argc==3 path
+expect_ok "b33offlinekeys defaults to 365 days" "$binary" b33offlinekeys "$tmpdir/b33default.dat" "$keyfile"
+expect_match "b33offlinekeys reports 365 days" '^Address [a-z2-7]+\.b32\.i2p, 365 days$' "$tmpdir/stdout"
+expect_ok "keyinfo -b on the default batch" "$binary" keyinfo -b "$tmpdir/b33default.dat"
+expect_match "keyinfo -b reports the 365-day span" '^b33 offline keys: 365 days, [0-9]{8} to [0-9]{8}$' "$tmpdir/stdout"
 
 ###############################################################################
 # i2pbase64
