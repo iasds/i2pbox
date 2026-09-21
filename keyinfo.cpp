@@ -1,8 +1,10 @@
 #include "Identity.h"
 #include "I2PEndian.h"
 #include "LeaseSet.h"
+#include "Base.h"
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <unistd.h>
@@ -101,6 +103,12 @@ int tool_keyinfo(int argc, char *argv[])
 	}
 
 	const auto & ident = dest->GetIdentHash();
+	// b33offlinekeys appends a batch of per-day keys after the online keys,
+	// which is where FromBuffer stopped. Parse it once for -p and -b.
+	uint16_t batchDays = 0;
+	std::string batchFirst, batchLast;
+	const bool hasBatch = onlineLen < len && i2pbox::DescribeB33OfflineBatch(
+	    buf + onlineLen, len - onlineLen, ident, batchDays, batchFirst, batchLast);
 	if (verbose) {
 		std::cout << "Destination: " << dest->ToBase64() << std::endl;
 		std::cout << "Destination Hash: " << ident.ToBase64() << std::endl;
@@ -116,7 +124,23 @@ int tool_keyinfo(int argc, char *argv[])
 		}
 	} else {
 		if(print_private) {
-			std::cout << keys.ToBase64() << std::endl;
+			if (hasBatch)
+			{
+				// upstream's libi2pd parses the batch and re-emits it inside
+				// ToBuffer, so its -p round trips the whole file. Serialize the
+				// online keys and append the batch to match that byte for byte.
+				std::vector<uint8_t> whole(len);
+				const std::size_t online = keys.ToBuffer(whole.data(), onlineLen);
+				if (online == onlineLen)
+				{
+					std::memcpy(whole.data() + onlineLen, buf + onlineLen, len - onlineLen);
+					std::cout << i2p::data::ByteStreamToBase64(whole.data(), whole.size()) << std::endl;
+				}
+				else
+					std::cout << keys.ToBase64() << std::endl;
+			}
+			else
+				std::cout << keys.ToBase64() << std::endl;
 		} else if(print_dest) {
 			std::cout << dest->ToBase64() << std::endl;
 		} else {
@@ -131,14 +155,9 @@ int tool_keyinfo(int argc, char *argv[])
 			i2p::data::BlindedPublicKey blindedKey (dest);
 			std::cout << "b33 address: " << blindedKey.ToB33 () << ".b32.i2p" << std::endl;
 			std::cout << "Today's store hash: " << blindedKey.GetStoreHash ().ToBase64 () << std::endl;
-			uint16_t batchDays = 0;
-			std::string firstDate, lastDate;
-			// b33offlinekeys appends its batch after the online keys, which is
-			// where FromBuffer stopped. A malformed tail just goes unreported.
-			if (onlineLen < len && i2pbox::DescribeB33OfflineBatch(buf + onlineLen, len - onlineLen,
-			    dest->GetIdentHash(), batchDays, firstDate, lastDate))
+			if (hasBatch)
 				std::cout << "b33 offline keys: " << batchDays << " days, "
-				    << firstDate << " to " << lastDate << std::endl;
+				    << batchFirst << " to " << batchLast << std::endl;
 		}
 		else {
 			std::cerr << "Invalid signature type " << SigTypeToName (dest->GetSigningKeyType ()) << std::endl;
