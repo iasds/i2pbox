@@ -1,4 +1,4 @@
-name: Monitor i2pd releases
+name: Monitor upstream
 
 on:
   schedule:
@@ -9,8 +9,13 @@ permissions:
   contents: read
   issues: write
 
+env:
+  # PurpleI2P/i2pd-tools commit the parity record in docs/VALIDATION-2026-08.md
+  # section 14 was checked against. Bump it in the same commit as a re-check.
+  TOOLS_PARITY_BASELINE: ca7ece8da86aa80b58fce6fa64375bfd75cbf843
+
 jobs:
-  check:
+  i2pd-release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +28,16 @@ jobs:
           script: |
             const latest = await github.rest.repos.getLatestRelease({ owner: 'PurpleI2P', repo: 'i2pd' });
             const { execFileSync } = require('child_process');
-            let pinned;
+            // The submodule pin is deliberately one commit past the release
+            // tag (the i2pbox patch commit), so describe --exact-match would
+            // fall back to a SHA and never equal the release. Compare the
+            // nearest reachable tag instead.
+            let pinned, pinnedDetail;
             try {
-              pinned = execFileSync('git', ['-C', 'i2pd', 'describe', '--tags', '--exact-match']).toString().trim();
+              pinned = execFileSync('git', ['-C', 'i2pd', 'describe', '--tags', '--abbrev=0']).toString().trim();
+              pinnedDetail = execFileSync('git', ['-C', 'i2pd', 'describe', '--tags', '--long', '--dirty']).toString().trim();
             } catch (err) {
-              pinned = execFileSync('git', ['-C', 'i2pd', 'rev-parse', '--short', 'HEAD']).toString().trim();
+              pinned = pinnedDetail = execFileSync('git', ['-C', 'i2pd', 'rev-parse', '--short', 'HEAD']).toString().trim();
             }
             const title = `Track i2pd ${latest.data.tag_name}`;
             // per_page 100: far more than the open-issue count this repo
@@ -47,5 +57,43 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title,
-              body: `Pinned i2pd version: \`${pinned}\`\n\nUpstream release: ${latest.data.html_url}\n\nCreate an upgrade branch, build, run \`make test\`, and review the upstream changelog before publishing.`
+              body: `Pinned i2pd version: \`${pinnedDetail}\` (nearest release tag \`${pinned}\`)\n\nUpstream release: ${latest.data.html_url}\n\nCreate an upgrade branch, build, run \`make test\`, and review the upstream changelog before publishing. The checklist in \`docs/VALIDATION-2026-08.md\` section 14 covers the C++20 bump a post-2.61.0 submodule needs.`
             });
+
+  i2pd-tools-drift:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const baseline = process.env.TOOLS_PARITY_BASELINE;
+            const title = 'Track i2pd-tools upstream changes';
+            const commits = await github.rest.repos.listCommits({ owner: 'PurpleI2P', repo: 'i2pd-tools', sha: 'master', per_page: 100 });
+            const newer = [];
+            let reached = false;
+            for (const c of commits.data) {
+              if (c.sha === baseline) { reached = true; break; }
+              newer.push(c);
+            }
+            const issues = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100 });
+            const existing = issues.data.filter(issue => issue.title === title);
+            if (reached && newer.length === 0) {
+              // nothing merged since the parity baseline: close any lingering issue
+              for (const issue of existing) {
+                await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, state: 'closed' });
+              }
+              return;
+            }
+            const lines = newer.map(c => `- \`${c.sha.slice(0, 7)}\` ${c.commit.message.split('\n')[0]} (${c.commit.committer.date.slice(0, 10)})`);
+            if (!reached) {
+              lines.push(`- ... baseline \`${baseline.slice(0, 7)}\` is not in the newest 100 commits (a rewritten history, or a very stale baseline): re-check before trusting this list`);
+            }
+            // keep the issue body readable when the baseline is far behind
+            const shown = lines.slice(0, 20);
+            if (lines.length > shown.length) shown.push(`- ... and ${lines.length - shown.length} more`);
+            const body = `Parity baseline: \`${baseline}\` (\`docs/VALIDATION-2026-08.md\`, section 14)\n\nMerged since:\n\n${shown.join('\n')}\n\nRe-run the command-by-command parity check, then update the baseline here and the validation record in the same commit.`;
+            if (existing.length) {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing[0].number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body });
+            }
