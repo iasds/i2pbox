@@ -276,9 +276,10 @@ are the durable part.
 
 ## 15. Weekly fuzz-job OOM (2026-10-07)
 
-The scheduled CI run has failed its 60 s `fuzz-smoke` step since 2026-08-24
-(six consecutive weeks); the push-triggered 15 s runs stayed under the limit,
-which is why it went unnoticed. Both `fuzz-b33address` and `fuzz-verifyhost`
+The scheduled CI run failed its 60 s `fuzz-smoke` step on 2026-08-24 and on
+every weekly run after it — seven in a row, through 2026-10-05 — while the
+push-triggered 15 s runs stayed under the limit, which is why it went
+unnoticed. Both `fuzz-b33address` and `fuzz-verifyhost`
 reached ~4.2 GB and tripped libFuzzer's RSS limit (`oom-da39a3ee…`, artifact of
 run 37293253696; `keyinfo` 1.3 GB and `routerinfo` 3.9 GB were on the same
 trajectory at 60 s).
@@ -291,7 +292,7 @@ messages were never printed either, because nothing drains that queue.
 
 | Requirement / changed output | Check | Observed result |
 |---|---|---|
-| Reproduce the growth | throwaway loop driver calling `LLVMFuzzerTestOneInput` 200 000 and 1 000 000 times on a 3-byte identity input (`QUFBQQ==`), reading `VmRSS` every 25 000 calls | 9.0 MB → 137.5 MB (200 000 calls) and 8.4 MB → 649.4 MB (1 000 000), +640 B per call, linear — the CI job's 4.2 GB at ~3.9 M ASan-instrumented executions is the same slope |
+| Reproduce the growth | throwaway loop driver calling `LLVMFuzzerTestOneInput` 200 000 and 1 000 000 times on a 3-byte identity input (`QUFBQQ==`), reading `VmRSS` every 25 000 calls | 9.0 MB → 137.5 MB (200 000 calls) and 8.4 MB → 649.4 MB (1 000 000), +640 B per call, linear — the same unbounded growth the CI job shows, which allocates more per message under ASan (4.2 GB at ~3.9 M executions) |
 | Setting the level from a static initializer is not enough | first attempt did exactly that in each target's `kCryptoInit`; RSS kept growing and `CheckLogLevel(eLogError)` still printed 1 | root cause: `Logger()` returns `Log.cpp`'s namespace-scope `logger`, whose constructor (`m_MinLevel = eLogInfo`) may run after the target TU's initializers and reset the level |
 | Level set on the first `LLVMFuzzerTestOneInput` call | same driver: `CheckLogLevel(eLogError)` after the run, and `VmRSS` at 200 000 and 1 000 000 calls | 0 (logging off); 9.0 MB → 9.2 MB (200 000) and 8.4 MB → 8.5 MB (1 000 000) — flat instead of +640 B per call |
 | The same paths still run | `make fuzz-smoke` (all six standalone targets over the committed corpus) | PASS |
