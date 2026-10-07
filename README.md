@@ -265,7 +265,7 @@ i2pbox b33offlinekeys b33batch.dat router.keys 365
 #     i2cp.leaseSetType = 5
 ```
 
-Ported from upstream `b33offlinekeys` (i2pd-tools PR #124); the batch layout matches upstream, and the i2pd-side reader landed on i2pd master after 2.61.0 (`libi2pd/Identity.cpp`, cross-checked against the commit i2pd-tools pins) so the next i2pd release publishes b33 addresses from these files.
+Ported from upstream `b33offlinekeys` (i2pd-tools PR #124); the batch layout matches upstream, and the i2pd-side reader landed on i2pd master after 2.61.0 (`libi2pd/Identity.cpp`, cross-checked against the commit i2pd-tools pins), so a router on the next i2pd release can publish b33 addresses from these files.
 
 ### b33address
 
