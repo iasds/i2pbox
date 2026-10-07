@@ -478,6 +478,15 @@ test -s "$vain_out" || fail "vain did not create an output file"
 expect_ok "vain output is a valid key" "$binary" keyinfo -v "$vain_out"
 expect_match "vain output starts with the prefix" "^B32 Address: ej[a-z2-7]{50}\.b32\.i2p$" "$tmpdir/stdout"
 
+# A single-threaded search must allocate its key buffer too. Upstream's fill
+# loop covered threads-2..0, so -t 1 read from an unallocated pointer
+# (i2pd-tools 8b63567); this drives the search on thread 0 alone.
+vain_one_out="$tmpdir/vain-t1.dat"
+expect_ok "vain works with a single thread" "$binary" vain ej -t 1 -o "$vain_one_out"
+test -s "$vain_one_out" || fail "vain -t 1 did not create an output file"
+expect_ok "vain -t 1 output is a valid key" "$binary" keyinfo -v "$vain_one_out"
+expect_match "vain -t 1 output starts with the prefix" "^B32 Address: ej[a-z2-7]{50}\.b32\.i2p$" "$tmpdir/stdout"
+
 # regex mode uses std::regex_match against the full 52-char b32 address
 vain_regex_out="$tmpdir/vain-regex.dat"
 expect_ok "vain regex mode" "$binary" vain '[a-z]{4}[a-z2-7]{48}' -r -t 2 -o "$vain_regex_out"
