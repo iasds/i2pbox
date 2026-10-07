@@ -19,6 +19,11 @@ Notable changes per release. Older releases are described in the
   baseline.
 - Tests: `vain -t 1` regression (i2pd-tools 8b63567 fixed the same class of
   bug in its own allocation loop; i2pbox never had it).
+- Fuzzing: the deep weekly run failed its RSS limit since 2026-08-24 because
+  nothing drains libi2pd's log queue in the fuzz targets (~640 B per malformed
+  identity, 4.2 GB in 60 s); the targets now silence the log level on their
+  first call, and the tools do the same (`docs/VALIDATION-2026-08.md` section
+  15).
 
 ## v2.1.1 — 2026-09-21
 
