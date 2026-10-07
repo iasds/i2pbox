@@ -4,11 +4,13 @@
 // i2pbox single-binary layout: tool entry point, hardened file handling,
 // strict day validation, and 0600 output files per repo convention.
 //
-// The batch layout constants live in common/b33_offline.hpp because the
-// libi2pd side (freeacetone/i2pd b33-offline-keys branch) is not merged
-// upstream yet and our pinned libi2pd has no B33_OFFLINE_KEYS_* symbols.
-// The batch is appended after the online keys; PrivateKeys::FromBuffer
-// stops at the end of the online keys, so old readers ignore the tail.
+// The batch layout constants live in common/b33_offline.hpp because our
+// pinned libi2pd (the 2.61.0 release) has no B33_OFFLINE_KEYS_* symbols. The
+// reader and the LeaseSet consumer landed on i2pd master after 2.61.0
+// (libi2pd/Identity.cpp, LeaseSet.cpp) and were cross-checked against this
+// writer (docs/VALIDATION-2026-08.md section 14).
+// The batch is appended after the online keys; 2.61.0 and older stop at the
+// end of the online keys and ignore the tail, master parses it.
 #include <iostream>
 #include <charconv>
 #include <cstdint>

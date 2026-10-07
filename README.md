@@ -265,7 +265,7 @@ i2pbox b33offlinekeys b33batch.dat router.keys 365
 #     i2cp.leaseSetType = 5
 ```
 
-Ported from upstream `b33offlinekeys` (i2pd-tools PR #124); the batch layout matches upstream so files stay compatible with i2pd once it learns to read them.
+Ported from upstream `b33offlinekeys` (i2pd-tools PR #124); the batch layout matches upstream, and the i2pd-side reader landed on i2pd master after 2.61.0 (`libi2pd/Identity.cpp`, cross-checked against the commit i2pd-tools pins) so the next i2pd release publishes b33 addresses from these files.
 
 ### b33address
 
@@ -397,8 +397,8 @@ are best-effort; please report breakage.
 
 | | i2pd-tools | i2pbox |
 |---|---|---|
-| **Binaries** | 14 separate | 1 |
-| **Compile** | 14 link invocations | 1 |
+| **Binaries** | 15 separate | 1 |
+| **Compile** | 15 link invocations | 1 |
 | **Stripped size** | ~70 MB | ~5.2 MB |
 | **Usage** | `./toolname args` | `i2pbox toolname args` |
 | **Output** | — | same upstream logic, regression-tested (interop chains + golden vectors) |
@@ -409,7 +409,8 @@ are best-effort; please report breakage.
 
 Each subcommand is built from the same upstream i2pd-tools logic, and the file
 formats are identical: `make interop` plus the command-by-command parity run
-recorded in `docs/VALIDATION-2026-08.md` (section 13) check that read-only
+recorded in `docs/VALIDATION-2026-08.md` (section 13), the upstream re-check
+against i2pd-tools `ca7ece8` (section 14) check that read-only
 commands print the same output, deterministic writers produce the same bytes,
 and each implementation reads the other's files. What differs is diagnostics
 and hardening:

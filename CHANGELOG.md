@@ -3,6 +3,23 @@
 Notable changes per release. Older releases are described in the
 [GitHub releases](https://github.com/iasds/i2pbox/releases).
 
+## Unreleased
+
+- The i2pd-side b33 offline-key reader and LeaseSet consumer have landed on
+  i2pd master after the 2.61.0 release. `b33offlinekeys` output was
+  cross-checked against that implementation (Ed25519 5 d, RedDSA 1 d, Ed25519
+  365 d: all days sign and verify, round trips byte-identical); the next i2pd
+  release publishes b33 addresses from these files. See
+  `docs/VALIDATION-2026-08.md` section 14, which also lists the C++20 bump the
+  next submodule upgrade needs.
+- Upstream monitor: compare the pinned i2pd submodule by nearest release tag
+  (the pin is deliberately one commit past the tag, so the old
+  `--exact-match` comparison could never match and left the tracking issue
+  open), and track i2pd-tools commits merged past the recorded parity
+  baseline.
+- Tests: `vain -t 1` regression (i2pd-tools 8b63567 fixed the same class of
+  bug in its own allocation loop; i2pbox never had it).
+
 ## v2.1.1 — 2026-09-21
 
 Cross-checked against upstream i2pd-tools command by command; one behavioural
