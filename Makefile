@@ -15,6 +15,10 @@ LIBI2PD_PATH := $(I2PD_PATH)/libi2pd
 LIBI2PD_CLIENT_PATH := $(I2PD_PATH)/libi2pd_client
 
 CXX ?= g++
+# C++17 because the submodule pins the 2.61.0 release. i2pd master after
+# 2.61.0 (libi2pd headers use std::span) needs C++20, so the next submodule
+# bump must raise this, the CI sanitizer flags, and AGENTS.md together; see
+# docs/VALIDATION-2026-08.md section 14.
 CXXFLAGS := -Wall -Wextra -std=c++17 -O2 \
 	-fstack-protector-strong -D_FORTIFY_SOURCE=2 \
 	-fPIE -Wformat -Wformat-security -Wno-unused-parameter

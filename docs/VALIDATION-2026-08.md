@@ -216,3 +216,60 @@ Reproduction: `make` in an upstream i2pd-tools clone (after pointing the
 submodule at the b33 branch), then drive both binaries from one script over a
 shared fixture set. The harness is throwaway, the assertions above are the
 durable part.
+
+## 14. Upstream re-check (2026-10-07) against i2pd-tools `ca7ece8`
+
+PurpleI2P/i2pd-tools merged three changes after the section 12/13 baseline
+`39f45c6` (2026-09-16), ending at master `ca7ece8` (2026-09-23):
+
+- `8b63567` (PR #127) `vain`: allocate a key buffer for every thread
+- `249cf18` (PR #126) update the i2pd submodule to the current head (C++20, `NO_TORRENTS`)
+- `329dffb` (PR #128) use `openssl@3.5` for macOS builds
+
+`git diff --stat 39f45c6 ca7ece8` touches six files, and `vain.cpp` /
+`vanity.hpp` are the only tool sources (the same two-line loop fix). The other
+four are build files, upstream's own CI workflow, and the submodule pin, so 14
+of the 15 subcommands have no upstream change to port; the verdict rests on
+`vain` and on the submodule policy.
+
+| Requirement / changed output | Check | Observed result |
+|---|---|---|
+| Scope of the upstream delta | `git diff --stat 39f45c6 ca7ece8` in a fresh clone | 6 files: `vain.cpp`, `vanity.hpp` (2 lines total), `CMakeLists.txt`, `Makefile`, `.github/workflows/build-and-release.yml`, `i2pd` |
+| `vain` must allocate a buffer for every thread | upstream's fill loop covered indices `threads-2..0`, so `-t 1` copied 391 bytes from an unallocated pointer; ours allocates `0..threads-1` (`vain.cpp:362`) and `DELKEYBUFS` walks every index with `OPENSSL_cleanse` (`vanity.hpp:88`) | not affected: `i2pbox vain ej -t 1` found `ej66m3yg…b32.i2p` in 2406 hashes (0.13 s) and `keyinfo -v` reads the file |
+| That path stays covered | new `tests/test_cli.sh` assertion "vain works with a single thread" (single-threaded search plus a `keyinfo -v` read of its output) | PASS; it would crash on upstream's pre-fix loop |
+| i2pd submodule policy | latest PurpleI2P/i2pd release is still `2.61.0` (2026-07-20); our pin `bf4b1563` is `2.61.0` plus the i2pbox patch commit | no bump needed; upstream's new pin `1e98572c` is 606 commits past the tag (compare API) |
+| The next bump needs C++20 | `1e98572c:libi2pd/Identity.h` uses `std::span` (`OfflinePrivateKeys::m_TransientPrivateKey`); upstream's `Makefile`/`CMakeLists.txt` now require C++20 and dropped the C++17 fallback | our build stays C++17 while pinned to 2.61.0; the checklist below is recorded so the bump is not a surprise |
+| The i2pd-side b33 support has landed | code search on the pin: `B33_OFFLINE_KEYS_VERSION` and `GetB33OfflineKeys` in `libi2pd/Identity.{h,cpp}`, `OfflinePrivateKeys` also consumed by `libi2pd/LeaseSet.cpp` | **landed on master** (not in the 2.61.0 release): the v2.1 wording "still lives on the b33-offline-keys branch, not in i2pd master" was stale and the README now says so |
+| Master's constants match ours | `1e98572c:libi2pd/Identity.h`: version 1, header `1 + 32 + 2`, `OFFLINE_SIGNATURE_HEADER_LENGTH 4 + 2`, `SECONDS_PER_DAY` | identical to `common/b33_offline.hpp` |
+| Master's reader accepts our batches | throwaway harness against `libi2pd.a` built from `1e98572c`: `PrivateKeys::FromBuffer` → `GetB33OfflineKeys` → `ToBuffer`, then per day `OfflinePrivateKeys` signs and both the carried blob (verified with that day's blinded key) and the transient signature (verified with the entry's transient public key) must check out | PASS: Ed25519 5 d (1518-byte file, 705-byte batch), RedDSA 1 d (982/169), Ed25519 365 d (49758/48945) — full length consumed, `-p`-style round trip byte-identical, 5/5 + 1/1 + 365/365 days verified |
+| A day outside the batch | `OfflinePrivateKeys` for the day after the last entry | no signer in all three cases |
+| A truncated batch stays safe | 20 bytes cut from the end of the 5-day file | batch header still accepted (685 bytes), 4/5 days sign, the cut day yields no signer, accepted bytes round trip byte-identical |
+| macOS `openssl@3.5` (upstream CI) | our `Makefile`/README already point at Homebrew's `openssl@3` | nothing to port; our CI is Linux + sanitizers |
+| Upstream monitoring gap | the release monitor compared `git describe --exact-match` with the release tag, but the pin is deliberately one commit past the tag, so it could never match (issue #2 "Track i2pd 2.61.0" stayed open although the pin is 2.61.0+patch) | fixed: compare the nearest tag (`--abbrev=0`) and report the full describe in the issue; a new `i2pd-tools-drift` job lists commits past this section's baseline, mocking clean/newer/rewritten-baseline scenarios with a stubbed GitHub client |
+| No new warnings, suite green | `make -j2`, `make test` | PASS (suite 10 s, all 15 command groups) |
+
+Reproduction: `git clone --filter=blob:none --no-checkout PurpleI2P/i2pd`,
+fetch `1e98572c`, `make -j2 libi2pd.a` (C++23 per i2pd's own Makefile), then
+build the section's harness with `-std=c++20` against that library and feed it
+`i2pbox b33offlinekeys` output. The harness is throwaway, the assertions above
+are the durable part.
+
+### Checklist for the next i2pd release (2.62+)
+
+1. Fetch the release tag and rebase the i2pbox patch commit (null-EVP_PKEY
+   guard) onto it, keeping the pin one commit past the tag so the monitor's
+   nearest-tag comparison stays honest.
+2. Raise `-std=c++17` to `-std=c++20` in the Makefile, in the CI sanitizer
+   matrix, and in the AGENTS.md note (libi2pd headers take `std::span` since
+   `1e98572c`).
+3. Add `-DNO_TORRENTS` if the build ever compiles `libi2pd_client` sources:
+   i2pd gates the torrents RPC that way to avoid a Boost.JSON dependency no
+   tool needs (upstream i2pd-tools `249cf18`). i2pbox links only `libi2pd.a`
+   today, so this is a note rather than a current need.
+4. Once the pin carries `B33_OFFLINE_KEYS_VERSION` / `GetB33OfflineKeys`, the
+   local constants in `common/b33_offline.hpp` can defer to libi2pd and
+   `b33offlinekeys` / `keyinfo -b` can cross-check against the released reader;
+   re-run this section's harness against the new pin.
+5. Bump `TOOLS_PARITY_BASELINE` in `.github/workflows/upstream-monitor.yml`
+   together with a new section here whenever the i2pd-tools parity run is
+   redone.

@@ -1,16 +1,18 @@
 #ifndef I2PBOX_COMMON_B33_OFFLINE_HPP
 #define I2PBOX_COMMON_B33_OFFLINE_HPP
 // b33 offline keys batch format (upstream PurpleI2P/i2pd-tools PR #124,
-// freeacetone/i2pd b33-offline-keys branch; libi2pd side not yet merged
-// upstream, so the constants and the reader live here instead of libi2pd):
+// freeacetone/i2pd b33-offline-keys branch; merged into i2pd master after the
+// 2.61.0 release, so the constants here shadow libi2pd only while the
+// submodule stays on 2.61.0; cross-checked against master commit 1e98572c in
+// docs/VALIDATION-2026-08.md section 14):
 //
 //   version(1) || ident hash(32) || number of keys(2),
 //   then per day: expires(4) || transient sig type(2) || transient pubkey ||
 //   signature by that day's blinded key || transient privkey.
 //
 // The batch is appended to the keys file after the online (offline-signed)
-// keys. libi2pd's PrivateKeys::FromBuffer stops at the end of the online
-// keys and ignores trailing bytes, so old readers stay compatible.
+// keys. libi2pd 2.61.0 and older stop at the end of the online keys and
+// ignore trailing bytes; i2pd master parses the batch into B33OfflineKeys.
 #include <cstddef>
 #include <cstdint>
 #include <cstring>

@@ -31,7 +31,7 @@ implementation but not exercised here; `—` not applicable / not supported.
 | `regaddr` / `verifyhost` | ✅ | ⬜ | ⬜ | ⬜ |
 | `regaddr_3ld` / `regaddralias` | ✅ | ⬜ | ⬜ | ⬜ |
 | `offlinekeys` | ✅ | ⬜ | ⬜ (format differs) | ⬜ |
-| `b33offlinekeys` (encrypted LeaseSet) | ⬜ reader only on the `b33-offline-keys` branch, not in i2pd master | ⬜ | ⬜ | ⬜ |
+| `b33offlinekeys` (encrypted LeaseSet) | ⬜ reader in i2pd master after 2.61.0 (verified against `1e98572c`), ships with the next release | ⬜ | ⬜ | ⬜ |
 | `famtool` (X.509 family certs) | ✅ | ⬜ | ⬜ | ⬜ |
 | `x25519` (encrypted LeaseSet) | ✅ | ⬜ | ⬜ | ⬜ |
 | `vain` | ✅ | ⬜ | ⬜ | ⬜ |
