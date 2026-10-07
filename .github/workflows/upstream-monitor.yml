@@ -22,7 +22,14 @@ jobs:
         with:
           submodules: recursive
       - name: Fetch submodule tags
-        run: git -C i2pd fetch --tags --force
+        run: |
+          # actions/checkout clones submodules with --depth=1, which grafts the
+          # pinned commit as a root: a plain --tags fetch then brings the tags
+          # in but none can describe the pin ("No tags can describe ..."), so
+          # deepen the pin's own ancestry before describing it. Verified in a
+          # depth-1 clone of the fork: 83 tags, describe 2.61.0-1-gbf4b156.
+          git -C i2pd fetch --tags --force --depth=10 origin "$(git -C i2pd rev-parse HEAD)"
+          git -C i2pd describe --tags --long --dirty
       - uses: actions/github-script@v7
         with:
           script: |
