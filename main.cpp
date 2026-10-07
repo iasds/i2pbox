@@ -2,6 +2,7 @@
 #include <cstring>
 #include <string>
 #include "Crypto.h"
+#include "Log.h"
 #include "tools.h"
 
 struct Command {
@@ -95,6 +96,12 @@ int main(int argc, char *argv[]) {
                 }
             }
             i2p::crypto::InitCrypto(c->precompute); // precomputed tables only needed by vain
+            // No tool starts libi2pd's log worker, so a queued message would
+            // only be retained, never printed. Keep the level at "none" so
+            // repeated warnings (for example one per malformed input) cannot
+            // accumulate; raise this together with Log::Start() if libi2pd
+            // diagnostics are ever wanted.
+            i2p::log::Logger().SetLogLevel("none");
             // Shift argv: i2pbox cmd args... → cmd args...
             int ret = c->func(argc - 1, argv + 1);
             i2p::crypto::TerminateCrypto();

@@ -11,6 +11,7 @@
 #include "Crypto.h"
 #include "Identity.h"
 #include "LeaseSet.h"
+#include "Log.h"
 
 static const bool kCryptoInit = [] {
     i2p::crypto::InitCrypto(false);
@@ -19,6 +20,18 @@ static const bool kCryptoInit = [] {
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size) {
     (void)kCryptoInit;
+    // No fuzz target starts libi2pd's log worker (Log::Start is never called),
+    // so every message LogPrint queues is retained for the process lifetime:
+    // a 60 s b33address/verifyhost run grew to ~4 GB and tripped libFuzzer's
+    // RSS limit (weekly CI, 2026-08..10). Nothing drains the queue, so nothing
+    // was ever printed either. Set the level on the first call, not from a
+    // static initializer: Log.o's `logger` is a namespace-scope object whose
+    // constructor (m_MinLevel = eLogInfo) may still run afterwards and reset it.
+    static const bool kLogSilenced = [] {
+        i2p::log::Logger().SetLogLevel("none");
+        return true;
+    }();
+    (void)kLogSilenced;
     // real destinations are a single base64 line (~600 chars); cap far above
     // that so pathological fuzz inputs cannot exhaust memory
     if (size > 1024u * 1024u)
